@@ -1,15 +1,14 @@
-# Venta de autos
+# AutoMarket
 
-Esqueleto académico de frontend para una aplicación de venta de autos. El equipo
-de frontend trabaja en este repositorio y el backend tendrá un repositorio
-independiente.
+Frontend para una plataforma de venta de autos. El equipo de frontend trabaja
+en este repositorio y el backend tendrá un repositorio independiente.
 
 ## Tecnologías
 
 - React con JavaScript (sin TypeScript).
 - Vite 8 para desarrollo y compilación.
 - React Router para la navegación.
-- CSS global básico.
+- CSS responsive propio.
 
 ## Requisitos
 
@@ -49,18 +48,24 @@ npm run build
 | Panel de administración | `/admin` |
 | Listado de órdenes | `/admin/ordenes` |
 
-Cada vista muestra su título y que está pendiente de implementación. Los enlaces
-de navegación permiten recorrerlas y existe una página para rutas inexistentes.
+Inicio presenta vehículos destacados, un buscador por marca/carrocería/
+presupuesto, categorías, marcas disponibles y ventajas de la plataforma. Los
+filtros abren el catálogo con parámetros de URL; el catálogo filtra por marca,
+carrocería, precio, año, transmisión y combustible. Los filtros se sincronizan
+con la URL y el catálogo conserva el detalle en modal y la paginación de seis
+vehículos por página. El resto de rutas se mantiene disponible.
 
 ## Estructura de carpetas
 
 - `public/`: archivos estáticos públicos.
 - `src/assets/`: recursos importados por el frontend.
 - `src/components/shared/`: componentes compartidos.
+- `src/components/home/`: secciones reutilizables de Inicio.
+- `src/components/vehicles/`: tarjetas reutilizables para vehículos.
 - `src/layouts/`: estructuras de navegación pública y administrativa.
 - `src/pages/`: una página por archivo y vista.
-- `src/services/`: punto central futuro para las peticiones al backend.
-- `src/mocks/`: datos de prueba futuros.
+- `src/services/`: acceso centralizado a vehículos.
+- `src/mocks/`: vehículos de prueba utilizados mientras se acuerda el contrato.
 - `docs/api-contract.md`: preguntas pendientes para coordinar el contrato con
   backend.
 
@@ -76,14 +81,19 @@ conserva en el repositorio.
 
 ## Estado actual y seguridad
 
-Este proyecto es solo un esqueleto: no tiene funcionalidades, conexión al
-backend ni autenticación. Las rutas administrativas tampoco están protegidas.
+La conexión al backend y la autenticación aún no están implementadas. Las rutas
+administrativas tampoco están protegidas.
 Al implementar autorización, el backend deberá validar permisos en cada
 operación; ocultar o restringir una vista en el frontend no es una medida de
 seguridad suficiente.
 
 Las preguntas de integración están en [docs/api-contract.md](docs/api-contract.md).
-El frontend no se conectará directamente con la base de datos.
+Como aún no hay endpoints, campos ni moneda acordados, `src/services/vehicleService.js`
+sirve los datos de `src/mocks/vehicles.js`; no se envían peticiones ficticias.
+Los precios del catálogo de prueba se presentan en USD solo como referencia.
+Al acordar el contrato, se conectará el servicio usando `VITE_API_BASE_URL` y las
+URLs de imagen entregadas por el backend. El frontend no se conectará directamente
+con la base de datos.
 
 Al desplegar, el servidor web deberá redirigir las rutas del navegador a
 `index.html` para que las rutas de React Router funcionen al abrirlas
