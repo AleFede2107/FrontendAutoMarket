@@ -1,8 +1,7 @@
-# Venta de autos
+# AutoMarket
 
-Esqueleto académico de frontend para una aplicación de venta de autos. El equipo
-de frontend trabaja en este repositorio y el backend tendrá un repositorio
-independiente.
+Frontend académico para una aplicación de venta de autos. El backend se
+desarrolla en un repositorio independiente.
 
 ## Tecnologías
 
@@ -49,8 +48,11 @@ npm run build
 | Panel de administración | `/admin` |
 | Listado de órdenes | `/admin/ordenes` |
 
-Cada vista muestra su título y que está pendiente de implementación. Los enlaces
-de navegación permiten recorrerlas y existe una página para rutas inexistentes.
+Las vistas de inicio, catálogo, carrito y login siguen provisionales. El panel
+administrativo ya consulta el inventario y permite agregar y eliminar registros;
+la pantalla de solicitudes consulta el listado disponible en el backend. La
+edición de vehículos permanece deshabilitada hasta que backend defina un formato
+de actualización compatible.
 
 ## Estructura de carpetas
 
@@ -66,8 +68,11 @@ de navegación permiten recorrerlas y existe una página para rutas inexistentes
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env.local` y completa `VITE_API_BASE_URL` cuando el
-equipo acuerde la URL base. No se inventa una URL en este esqueleto.
+Copia `.env.example` a `.env.local` y establece `VITE_API_BASE_URL` con el
+origen acordado del backend, por ejemplo `http://localhost:8000` para un entorno
+local. El frontend agrega `/api/v1` a las rutas; no incluyas ese prefijo en la
+variable. El valor de ejemplo está vacío porque la URL real debe acordarse con
+backend. No se reemplazan archivos locales de entorno.
 
 Las variables con prefijo `VITE_` se exponen en el código enviado al navegador:
 son públicas y nunca deben contener contraseñas, tokens ni otros secretos.
@@ -76,14 +81,15 @@ conserva en el repositorio.
 
 ## Estado actual y seguridad
 
-Este proyecto es solo un esqueleto: no tiene funcionalidades, conexión al
-backend ni autenticación. Las rutas administrativas tampoco están protegidas.
-Al implementar autorización, el backend deberá validar permisos en cada
-operación; ocultar o restringir una vista en el frontend no es una medida de
-seguridad suficiente.
+Las vistas públicas de inicio, catálogo y carrito, y el login, siguen siendo
+provisionales. Las páginas administrativas tampoco están protegidas por el
+frontend. El backend debe validar los permisos para cada operación; ocultar o
+restringir una vista en el navegador no es una medida de seguridad suficiente.
 
-Las preguntas de integración están en [docs/api-contract.md](docs/api-contract.md).
-El frontend no se conectará directamente con la base de datos.
+Las operaciones verificadas, sus limitaciones y los acuerdos pendientes están
+en [docs/api-contract.md](docs/api-contract.md). El frontend no se conecta
+directamente con la base de datos. El contrato de importes no define una
+moneda, por lo que la interfaz muestra cantidades sin símbolo ni conversión.
 
 Al desplegar, el servidor web deberá redirigir las rutas del navegador a
 `index.html` para que las rutas de React Router funcionen al abrirlas
@@ -98,4 +104,6 @@ directamente.
 5. Conservar `package-lock.json` en el repositorio y actualizarlo al cambiar
    dependencias.
 
-No se han creado ramas de trabajo para las vistas.
+Las páginas administrativas y sus estilos están aislados en
+`src/pages/admin/` y `src/pages/admin/admin.css`. Coordina con el equipo los
+cambios en rutas, layouts, estilos globales y dependencias.
