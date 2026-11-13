@@ -1,3 +1,8 @@
+import mockVehicles from '../mocks/vehicles.js'
+
+export async function getVehicles() {
+  return mockVehicles
+}
 import { apiRequest } from './apiClient.js'
 
 export async function listVehicles() {

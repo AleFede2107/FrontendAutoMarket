@@ -1,4 +1,5 @@
 # AutoMarket
+# AutoMarket
 
 Frontend académico para una aplicación de venta de autos. El backend se
 desarrolla en un repositorio independiente.
@@ -8,7 +9,7 @@ desarrolla en un repositorio independiente.
 - React con JavaScript (sin TypeScript).
 - Vite 8 para desarrollo y compilación.
 - React Router para la navegación.
-- CSS global básico.
+- CSS responsive propio.
 
 ## Requisitos
 
@@ -59,10 +60,12 @@ de actualización compatible.
 - `public/`: archivos estáticos públicos.
 - `src/assets/`: recursos importados por el frontend.
 - `src/components/shared/`: componentes compartidos.
+- `src/components/home/`: secciones reutilizables de Inicio.
+- `src/components/vehicles/`: tarjetas reutilizables para vehículos.
 - `src/layouts/`: estructuras de navegación pública y administrativa.
 - `src/pages/`: una página por archivo y vista.
-- `src/services/`: punto central futuro para las peticiones al backend.
-- `src/mocks/`: datos de prueba futuros.
+- `src/services/`: acceso centralizado a vehículos.
+- `src/mocks/`: vehículos de prueba utilizados mientras se acuerda el contrato.
 - `docs/api-contract.md`: preguntas pendientes para coordinar el contrato con
   backend.
 
