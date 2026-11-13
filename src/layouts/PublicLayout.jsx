@@ -85,7 +85,7 @@ function PublicLayout() {
               <a href="#ventajas">Cómo funciona</a>
             ) : null}
             <Link to="/carrito">Carrito</Link>
-            <Link to="/admin/login">Acceso administrativo</Link>
+            <Link to="/login">Acceso administrativo</Link>
           </div>
         </div>
         <div className="public-footer__bottom">
