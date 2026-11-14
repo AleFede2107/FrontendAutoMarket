@@ -1,7 +1,8 @@
 # AutoMarket
+# AutoMarket
 
-Frontend para una plataforma de venta de autos. El equipo de frontend trabaja
-en este repositorio y el backend tendrá un repositorio independiente.
+Frontend académico para una aplicación de venta de autos. El backend se
+desarrolla en un repositorio independiente.
 
 ## Tecnologías
 
@@ -48,12 +49,11 @@ npm run build
 | Panel de administración | `/admin` |
 | Listado de órdenes | `/admin/ordenes` |
 
-Inicio presenta vehículos destacados, un buscador por marca/carrocería/
-presupuesto, categorías, marcas disponibles y ventajas de la plataforma. Los
-filtros abren el catálogo con parámetros de URL; el catálogo filtra por marca,
-carrocería, precio, año, transmisión y combustible. Los filtros se sincronizan
-con la URL y el catálogo conserva el detalle en modal y la paginación de seis
-vehículos por página. El resto de rutas se mantiene disponible.
+Las vistas de inicio, catálogo, carrito y login siguen provisionales. El panel
+administrativo ya consulta el inventario y permite agregar y eliminar registros;
+la pantalla de solicitudes consulta el listado disponible en el backend. La
+edición de vehículos permanece deshabilitada hasta que backend defina un formato
+de actualización compatible.
 
 ## Estructura de carpetas
 
@@ -105,4 +105,6 @@ directamente.
 5. Conservar `package-lock.json` en el repositorio y actualizarlo al cambiar
    dependencias.
 
-No se han creado ramas de trabajo para las vistas.
+Las páginas administrativas y sus estilos están aislados en
+`src/pages/admin/` y `src/pages/admin/admin.css`. Coordina con el equipo los
+cambios en rutas, layouts, estilos globales y dependencias.
