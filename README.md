@@ -71,11 +71,9 @@ de actualización compatible.
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env.local` y establece `VITE_API_BASE_URL` con el
-origen acordado del backend, por ejemplo `http://localhost:8000` para un entorno
-local. El frontend agrega `/api/v1` a las rutas; no incluyas ese prefijo en la
-variable. El valor de ejemplo está vacío porque la URL real debe acordarse con
-backend. No se reemplazan archivos locales de entorno.
+Copia `.env.example` a `.env.local`. `VITE_API_BASE_URL` apunta al backend
+desplegado de AutoMarket y se puede reemplazar por la URL del entorno que se
+esté utilizando.
 
 Las variables con prefijo `VITE_` se exponen en el código enviado al navegador:
 son públicas y nunca deben contener contraseñas, tokens ni otros secretos.
@@ -84,15 +82,15 @@ conserva en el repositorio.
 
 ## Estado actual y seguridad
 
-Las vistas públicas de inicio, catálogo y carrito, y el login, siguen siendo
-provisionales. Las páginas administrativas tampoco están protegidas por el
-frontend. El backend debe validar los permisos para cada operación; ocultar o
-restringir una vista en el navegador no es una medida de seguridad suficiente.
+El login administrativo consume `POST /api/v1/administradores/IniciarSesion`
+mediante `src/services/authService.js`; el detalle está en
+[docs/api-contract.md](docs/api-contract.md). El contrato publicado no define
+un token ni una sesión persistente. Las rutas administrativas de React siguen
+sin protección, por lo que navegar a `/admin` no constituye autorización.
 
-Las operaciones verificadas, sus limitaciones y los acuerdos pendientes están
-en [docs/api-contract.md](docs/api-contract.md). El frontend no se conecta
-directamente con la base de datos. El contrato de importes no define una
-moneda, por lo que la interfaz muestra cantidades sin símbolo ni conversión.
+El catálogo continúa usando datos de `src/mocks/vehicles.js`; no se envían
+peticiones ficticias. Los precios de prueba se presentan en USD solo como
+referencia. El frontend no se conecta directamente con la base de datos.
 
 Al desplegar, el servidor web deberá redirigir las rutas del navegador a
 `index.html` para que las rutas de React Router funcionen al abrirlas
