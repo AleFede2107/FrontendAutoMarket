@@ -72,27 +72,34 @@ de actualización compatible.
 ## Variables de entorno
 
 Copia `.env.example` a `.env.local` y establece `VITE_API_BASE_URL` con el
-origen acordado del backend, por ejemplo `http://localhost:8000` para un entorno
-local. El frontend agrega `/api/v1` a las rutas; no incluyas ese prefijo en la
-variable. El valor de ejemplo está vacío porque la URL real debe acordarse con
-backend. No se reemplazan archivos locales de entorno.
+origen del backend. El frontend agrega `/api/v1` a las rutas; no incluyas ese
+prefijo en la variable. El valor recomendado para el despliegue actual es
+`https://backendconcesionario.onrender.com`.
 
 Las variables con prefijo `VITE_` se exponen en el código enviado al navegador:
 son públicas y nunca deben contener contraseñas, tokens ni otros secretos.
 Los archivos locales de entorno están excluidos de Git; `.env.example` sí se
 conserva en el repositorio.
 
+## Sesión y autenticación
+
+El login de administrador conserva la sesión del usuario en `sessionStorage` para
+mantenerla mientras la pestaña sigue abierta. No se almacena la contraseña y no
+se activa la opción de "recordarme" persistente. El frontend valida los datos
+recuperados antes de usarlos y los demás endpoints protegidos requieren un
+`Authorization: Bearer <token>` enviado por el cliente.
+
 ## Estado actual y seguridad
 
-Las vistas públicas de inicio, catálogo y carrito, y el login, siguen siendo
-provisionales. Las páginas administrativas tampoco están protegidas por el
-frontend. El backend debe validar los permisos para cada operación; ocultar o
-restringir una vista en el navegador no es una medida de seguridad suficiente.
+Las vistas públicas de inicio, catálogo y carrito siguen provisionales.
+El login administrativo y el panel utilizan la sesión compartida del backend y
+la ruta protegida del frontend solo complementa la validación de permisos del
+servidor. El backend debe seguir validando cada operación.
 
-Las operaciones verificadas, sus limitaciones y los acuerdos pendientes están
-en [docs/api-contract.md](docs/api-contract.md). El frontend no se conecta
-directamente con la base de datos. El contrato de importes no define una
-moneda, por lo que la interfaz muestra cantidades sin símbolo ni conversión.
+Las operaciones verificadas, sus limitaciones y las diferencias con el contrato
+desplegado están en [docs/api-contract.md](docs/api-contract.md). El frontend no
+se conecta directamente con la base de datos. El contrato de importes no define
+una moneda, por lo que la interfaz muestra cantidades sin símbolo ni conversión.
 
 Al desplegar, el servidor web deberá redirigir las rutas del navegador a
 `index.html` para que las rutas de React Router funcionen al abrirlas

@@ -1,4 +1,6 @@
-const API_VERSION_PATH = '/api/v1'
+import { clearSession, getStoredSession } from './authService.js'
+import { buildApiUrl } from './httpConfig.js'
+
 const fieldLabels = {
   marca: 'Marca',
   modelo: 'Modelo',
@@ -12,7 +14,21 @@ const fieldLabels = {
   fotoauto: 'Fotografía',
 }
 
+export class ApiError extends Error {
+  constructor({ message, status, payload, cause }) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.payload = payload
+    this.cause = cause
+  }
+}
+
 function translateValidationMessage(message) {
+  if (!message || typeof message !== 'string') {
+    return ''
+  }
+
   if (message === 'Field required') {
     return 'es un campo obligatorio.'
   }
@@ -44,18 +60,6 @@ function translateValidationMessage(message) {
   return message
 }
 
-function getApiBaseUrl() {
-  const configuredUrl = import.meta.env.VITE_API_BASE_URL?.trim()
-
-  if (!configuredUrl) {
-    throw new Error(
-      'Configura VITE_API_BASE_URL con el origen del backend para cargar los datos.',
-    )
-  }
-
-  return configuredUrl.replace(/\/+$/, '').replace(/\/api\/v1$/i, '')
-}
-
 function getValidationMessage(detail) {
   if (typeof detail === 'string') {
     return detail
@@ -84,12 +88,29 @@ function getValidationMessage(detail) {
 }
 
 function getErrorMessage(payload, status) {
-  const message =
+  const validationMessage =
     getValidationMessage(payload?.detail) ??
-    getValidationMessage(payload?.message)
+    getValidationMessage(payload?.message) ??
+    getValidationMessage(payload?.error)
 
-  if (message) {
-    return message
+  if (validationMessage) {
+    return validationMessage
+  }
+
+  if (status === 401) {
+    return 'Tu sesión expiró o no tienes permisos para esta operación.'
+  }
+
+  if (status === 403) {
+    return 'No tienes permiso para realizar esta operación.'
+  }
+
+  if (status === 404) {
+    return 'El recurso solicitado ya no está disponible.'
+  }
+
+  if (status === 409) {
+    return 'La solicitud no pudo aplicarse porque el estado o los datos cambiaron. Consulta de nuevo e intenta otra acción.'
   }
 
   if (status === 422) {
@@ -99,49 +120,132 @@ function getErrorMessage(payload, status) {
   return `El servidor respondió con el estado ${status}.`
 }
 
-export async function apiRequest(path, options = {}) {
-  const url = `${getApiBaseUrl()}${API_VERSION_PATH}${path}`
-  let response
+async function parseJsonPayload(response) {
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return null
+  }
+
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (!contentType.includes('application/json')) {
+    return null
+  }
 
   try {
-    response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      ...options,
+    return await response.json()
+  } catch (error) {
+    throw new ApiError({
+      message: `El servidor respondió con contenido no válido (estado ${response.status}).`,
+      status: response.status,
+      payload: null,
+      cause: error,
     })
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error(
-        'No se pudo conectar con el backend. Comprueba su disponibilidad y la configuración CORS.',
-      )
-    }
+  }
+}
 
-    throw error
+export async function apiRequest(path, options = {}) {
+  const requestOptions = { ...options }
+  const headers = new Headers(requestOptions.headers ?? {})
+  const requireAuth = requestOptions.requireAuth === true
+
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json')
   }
 
-  let payload
+  if (requireAuth) {
+    const session = getStoredSession()
+
+    if (!session?.token) {
+      clearSession()
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+        window.location.assign('/admin/login?reason=session_required')
+      }
+      throw new ApiError({
+        message: 'Debes iniciar sesión para continuar.',
+        status: 401,
+        payload: { message: 'Debes iniciar sesión para continuar.' },
+      })
+    }
+
+    headers.set('Authorization', `Bearer ${session.token}`)
+  }
+
+  if (
+    requestOptions.body &&
+    !(requestOptions.body instanceof FormData) &&
+    typeof requestOptions.body !== 'string' &&
+    !(requestOptions.body instanceof Blob) &&
+    !(requestOptions.body instanceof URLSearchParams)
+  ) {
+    requestOptions.body = JSON.stringify(requestOptions.body)
+  }
+
+  if (
+    requestOptions.body &&
+    !(requestOptions.body instanceof FormData) &&
+    !headers.has('Content-Type') &&
+    typeof requestOptions.body === 'string'
+  ) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   try {
-    payload = await response.json()
+    const response = await fetch(buildApiUrl(path), {
+      ...requestOptions,
+      headers,
+      signal: requestOptions.signal,
+    })
+
+    const payload = await parseJsonPayload(response)
+
+    if (!response.ok) {
+      const message = getErrorMessage(payload, response.status)
+
+      if (response.status === 401 && requireAuth) {
+        clearSession()
+        if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+          window.location.assign('/admin/login?reason=session_expired')
+        }
+      }
+
+      throw new ApiError({
+        message,
+        status: response.status,
+        payload,
+      })
+    }
+
+    if (payload && typeof payload === 'object' && 'code' in payload && payload.code !== 1) {
+      throw new ApiError({
+        message:
+          getValidationMessage(payload.message) ??
+          getValidationMessage(payload.detail) ??
+          'El servidor no confirmó la operación.',
+        status: 400,
+        payload,
+      })
+    }
+
+    return payload
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(
-        `El servidor respondió con contenido no válido (estado ${response.status}).`,
-      )
+    if (error instanceof ApiError) {
+      throw error
+    }
+
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error
+    }
+
+    if (error instanceof TypeError) {
+      throw new ApiError({
+        message:
+          'No se pudo conectar con el backend. Comprueba su disponibilidad y la configuración CORS.',
+        status: 503,
+        payload: null,
+        cause: error,
+      })
     }
 
     throw error
   }
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(payload, response.status))
-  }
-
-  if (payload?.code !== 1) {
-    throw new Error(
-      getValidationMessage(payload?.message) ??
-        'El servidor no confirmó la operación.',
-    )
-  }
-
-  return payload
 }
