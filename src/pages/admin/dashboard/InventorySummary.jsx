@@ -21,7 +21,7 @@ function formatNumber(value, fallback = '—') {
   return numberFormatter.format(parsed)
 }
 
-function InventorySummary({ summary, vehicles, error }) {
+function InventorySummary({ summary, vehicles }) {
   const vehicleCounts = vehicles.reduce(
     (result, vehicle) => {
       result.total += 1
@@ -91,12 +91,6 @@ function InventorySummary({ summary, vehicles, error }) {
 
   return (
     <>
-      {error && !summary && (
-        <div className="admin-alert admin-alert-info" role="status">
-          El resumen del backend no está disponible. El inventario sigue cargado con la última respuesta válida.
-        </div>
-      )}
-
       <section className="admin-summary" aria-label="Resumen del inventario y solicitudes">
         <article className="admin-card admin-summary-card" key="vehicles-total">
           <span className="admin-summary-label">Total de vehículos</span>

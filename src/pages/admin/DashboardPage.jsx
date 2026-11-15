@@ -12,12 +12,27 @@ import VehicleTable from './dashboard/VehicleTable.jsx'
 
 const PAGE_SIZE = 10
 
+function cancelCurrentRequest(requestRef) {
+  const currentRequest = requestRef.current
+
+  if (!currentRequest.controller) {
+    return
+  }
+
+  requestRef.current = {
+    id: currentRequest.id + 1,
+    controller: null,
+  }
+  currentRequest.controller.abort()
+}
+
 function DashboardPage() {
   const [vehicles, setVehicles] = useState([])
   const [summary, setSummary] = useState(null)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true)
   const [error, setError] = useState('')
   const [summaryError, setSummaryError] = useState('')
   const [actionError, setActionError] = useState('')
@@ -29,17 +44,17 @@ function DashboardPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const hasLoadedRef = useRef(false)
-  const requestInFlightRef = useRef(false)
-  const summaryRequestRef = useRef(0)
-  const vehiclesRequestRef = useRef(0)
+  const summaryRequestRef = useRef({ id: 0, controller: null })
+  const vehiclesRequestRef = useRef({ id: 0, controller: null })
 
-  const loadVehicles = useCallback(async (signal) => {
-    const currentRequest = ++vehiclesRequestRef.current
-    if (requestInFlightRef.current) {
-      return false
+  const loadVehicles = useCallback(() => {
+    const previousRequest = vehiclesRequestRef.current
+    const currentRequest = {
+      id: previousRequest.id + 1,
+      controller: new AbortController(),
     }
-
-    requestInFlightRef.current = true
+    vehiclesRequestRef.current = currentRequest
+    previousRequest.controller?.abort()
     setError('')
 
     if (hasLoadedRef.current) {
@@ -48,65 +63,102 @@ function DashboardPage() {
       setIsLoading(true)
     }
 
-    try {
-      const items = await listVehicles({ signal })
-      if (currentRequest !== vehiclesRequestRef.current) {
-        return false
-      }
+    const requestPromise = (async () => {
+      try {
+        const items = await listVehicles({
+          signal: currentRequest.controller.signal,
+        })
+        if (currentRequest.id !== vehiclesRequestRef.current.id) {
+          return false
+        }
 
-      setVehicles(items)
-      setHasLoaded(true)
-      hasLoadedRef.current = true
-      return true
-    } catch (requestError) {
-      if (currentRequest !== vehiclesRequestRef.current) {
-        return false
-      }
+        setVehicles(items)
+        setHasLoaded(true)
+        hasLoadedRef.current = true
+        return true
+      } catch (requestError) {
+        if (
+          currentRequest.id !== vehiclesRequestRef.current.id ||
+          requestError.name === 'AbortError'
+        ) {
+          return false
+        }
 
-      setError(requestError.message)
-      return false
-    } finally {
-      if (currentRequest === vehiclesRequestRef.current) {
-        requestInFlightRef.current = false
-        setIsLoading(false)
-        setIsRefreshing(false)
+        setError(requestError.message)
+        return false
+      } finally {
+        if (currentRequest.id === vehiclesRequestRef.current.id) {
+          vehiclesRequestRef.current = {
+            id: currentRequest.id,
+            controller: null,
+          }
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
       }
-    }
+    })()
+
+    return requestPromise
   }, [])
 
-  const loadSummary = useCallback(async (signal) => {
-    const currentRequest = ++summaryRequestRef.current
+  const loadSummary = useCallback(() => {
+    const previousRequest = summaryRequestRef.current
+    const currentRequest = {
+      id: previousRequest.id + 1,
+      controller: new AbortController(),
+    }
+    summaryRequestRef.current = currentRequest
+    previousRequest.controller?.abort()
     setSummaryError('')
+    setIsSummaryLoading(true)
 
-    try {
-      const item = await getDashboardSummary({ signal })
-      if (currentRequest !== summaryRequestRef.current) {
-        return
+    const requestPromise = (async () => {
+      try {
+        const item = await getDashboardSummary({
+          signal: currentRequest.controller.signal,
+        })
+        if (currentRequest.id !== summaryRequestRef.current.id) {
+          return
+        }
+
+        setSummary(item)
+      } catch (requestError) {
+        if (
+          currentRequest.id !== summaryRequestRef.current.id ||
+          requestError.name === 'AbortError'
+        ) {
+          return
+        }
+
+        setSummaryError(requestError.message)
+        setSummary(null)
+      } finally {
+        if (currentRequest.id === summaryRequestRef.current.id) {
+          summaryRequestRef.current = {
+            id: currentRequest.id,
+            controller: null,
+          }
+          setIsSummaryLoading(false)
+        }
       }
+    })()
 
-      setSummary(item)
-    } catch (requestError) {
-      if (currentRequest !== summaryRequestRef.current) {
-        return
-      }
-
-      setSummaryError(requestError.message)
-      setSummary(null)
-    }
+    return requestPromise
   }, [])
+
+  const loadDashboard = useCallback(() => {
+    const vehiclesRequest = loadVehicles()
+    const summaryRequest = loadSummary()
+    return Promise.all([vehiclesRequest, summaryRequest])
+  }, [loadSummary, loadVehicles])
 
   useEffect(() => {
-    const vehicleController = new AbortController()
-    const summaryController = new AbortController()
-
-    loadVehicles(vehicleController.signal)
-    loadSummary(summaryController.signal)
-
+    loadDashboard()
     return () => {
-      vehicleController.abort()
-      summaryController.abort()
+      cancelCurrentRequest(vehiclesRequestRef)
+      cancelCurrentRequest(summaryRequestRef)
     }
-  }, [loadSummary, loadVehicles])
+  }, [loadDashboard])
 
   const filteredVehicles = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase()
@@ -138,8 +190,7 @@ function DashboardPage() {
     await createVehicle(formData)
     setActionError('')
     setNotice('El vehículo se agregó correctamente.')
-    await loadVehicles(new AbortController().signal)
-    await loadSummary(new AbortController().signal)
+    await loadDashboard()
   }
 
   async function handleDelete(vehicle) {
@@ -159,8 +210,7 @@ function DashboardPage() {
     try {
       await deleteVehicle(vehicle.id)
       setNotice(`Se eliminó el registro de ${vehicleName}.`)
-      await loadVehicles(new AbortController().signal)
-      await loadSummary(new AbortController().signal)
+      await loadDashboard()
     } catch (requestError) {
       setActionError(requestError.message)
     } finally {
@@ -182,13 +232,8 @@ function DashboardPage() {
           <button
             className="admin-button admin-button-secondary"
             type="button"
-            onClick={() => {
-              const vehicleController = new AbortController()
-              const summaryController = new AbortController()
-              loadVehicles(vehicleController.signal)
-              loadSummary(summaryController.signal)
-            }}
-            disabled={isLoading || isRefreshing}
+            onClick={loadDashboard}
+            disabled={isLoading}
           >
             {isRefreshing ? 'Actualizando…' : 'Actualizar listado'}
           </button>
@@ -216,10 +261,7 @@ function DashboardPage() {
           <button
             className="admin-button admin-button-small admin-button-secondary"
             type="button"
-            onClick={() => {
-              const controller = new AbortController()
-              loadVehicles(controller.signal)
-            }}
+            onClick={loadVehicles}
             disabled={isLoading || isRefreshing}
           >
             Reintentar
@@ -230,6 +272,11 @@ function DashboardPage() {
       {summaryError && (
         <p className="admin-alert admin-alert-info" role="status">
           {summaryError} El inventario puede seguir funcionando mientras el resumen se recarga.
+        </p>
+      )}
+      {isSummaryLoading && summary === null && (
+        <p className="admin-alert admin-alert-info" role="status">
+          Cargando resumen de estadísticas…
         </p>
       )}
 
@@ -250,72 +297,72 @@ function DashboardPage() {
           <p>Cargando inventario…</p>
         </section>
       ) : hasLoaded ? (
-        <>
-          <InventorySummary summary={summary} vehicles={vehicles} error={summaryError} />
-
-          <section className="admin-card admin-inventory-card">
-            <div className="admin-section-heading">
-              <div>
-                <h2>Gestión de vehículos</h2>
-                <p>
-                  La búsqueda, los filtros y la paginación se aplican en este
-                  navegador sobre los registros recibidos.
-                </p>
-              </div>
-              <span className="admin-section-count">
-                {filteredVehicles.length} registros
-              </span>
+        <section className="admin-card admin-inventory-card">
+          <div className="admin-section-heading">
+            <div>
+              <h2>Gestión de vehículos</h2>
+              <p>
+                La búsqueda, los filtros y la paginación se aplican en este
+                navegador sobre los registros recibidos.
+              </p>
             </div>
+            <span className="admin-section-count">
+              {filteredVehicles.length} registros
+            </span>
+          </div>
 
-            <VehicleFilters
-              search={search}
-              statusFilter={statusFilter}
-              conditionFilter={conditionFilter}
-              onSearchChange={(value) => {
-                setSearch(value)
-                setPage(1)
-              }}
-              onStatusChange={(value) => {
-                setStatusFilter(value)
-                setPage(1)
-              }}
-              onConditionChange={(value) => {
-                setConditionFilter(value)
-                setPage(1)
-              }}
-              onClear={clearFilters}
+          <VehicleFilters
+            search={search}
+            statusFilter={statusFilter}
+            conditionFilter={conditionFilter}
+            onSearchChange={(value) => {
+              setSearch(value)
+              setPage(1)
+            }}
+            onStatusChange={(value) => {
+              setStatusFilter(value)
+              setPage(1)
+            }}
+            onConditionChange={(value) => {
+              setConditionFilter(value)
+              setPage(1)
+            }}
+            onClear={clearFilters}
+          />
+
+          {vehicles.length === 0 ? (
+            <div className="admin-empty-state">
+              <h3>Inventario vacío</h3>
+              <p>La consulta se completó y el backend no devolvió vehículos.</p>
+            </div>
+          ) : filteredVehicles.length === 0 ? (
+            <div className="admin-empty-state">
+              <h3>Sin resultados</h3>
+              <p>No hay vehículos que coincidan con los filtros actuales.</p>
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={clearFilters}
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          ) : (
+            <VehicleTable
+              vehicles={filteredVehicles}
+              page={Math.min(page, pageCount)}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+              onDelete={handleDelete}
+              deletingId={deletingId}
             />
-
-            {vehicles.length === 0 ? (
-              <div className="admin-empty-state">
-                <h3>Inventario vacío</h3>
-                <p>La consulta se completó y el backend no devolvió vehículos.</p>
-              </div>
-            ) : filteredVehicles.length === 0 ? (
-              <div className="admin-empty-state">
-                <h3>Sin resultados</h3>
-                <p>No hay vehículos que coincidan con los filtros actuales.</p>
-                <button
-                  className="admin-button admin-button-secondary"
-                  type="button"
-                  onClick={clearFilters}
-                >
-                  Limpiar filtros
-                </button>
-              </div>
-            ) : (
-              <VehicleTable
-                vehicles={filteredVehicles}
-                page={Math.min(page, pageCount)}
-                pageSize={PAGE_SIZE}
-                onPageChange={setPage}
-                onDelete={handleDelete}
-                deletingId={deletingId}
-              />
-            )}
-          </section>
-        </>
+          )}
+        </section>
       ) : null}
+
+      {(summary !== null || hasLoaded) && (
+        <InventorySummary summary={summary} vehicles={vehicles} />
+      )}
 
       {isFormOpen && (
         <VehicleForm

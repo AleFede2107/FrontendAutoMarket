@@ -32,6 +32,20 @@ const allowedTransitions = {
   completada: [],
 }
 
+function cancelCurrentRequest(requestRef) {
+  const currentRequest = requestRef.current
+
+  if (!currentRequest.controller) {
+    return
+  }
+
+  requestRef.current = {
+    id: currentRequest.id + 1,
+    controller: null,
+  }
+  currentRequest.controller.abort()
+}
+
 function normalizeState(value) {
   return String(value ?? '').trim().toLowerCase()
 }
@@ -61,16 +75,16 @@ function OrdersPage() {
   const [savingNotesId, setSavingNotesId] = useState(null)
   const [savingStatusId, setSavingStatusId] = useState(null)
   const hasLoadedRef = useRef(false)
-  const requestInFlightRef = useRef(false)
+  const requestsRequestRef = useRef({ id: 0, controller: null })
 
-  const loadRequests = useCallback(async (options = {}) => {
-    const { signal } = options
-
-    if (requestInFlightRef.current) {
-      return
+  const loadRequests = useCallback(() => {
+    const previousRequest = requestsRequestRef.current
+    const currentRequest = {
+      id: previousRequest.id + 1,
+      controller: new AbortController(),
     }
-
-    requestInFlightRef.current = true
+    requestsRequestRef.current = currentRequest
+    previousRequest.controller?.abort()
     setError('')
 
     if (hasLoadedRef.current) {
@@ -79,33 +93,52 @@ function OrdersPage() {
       setIsLoading(true)
     }
 
-    try {
-      const items = await listPurchaseRequests({ signal, requireAuth: true })
-      setRequests(items)
-      setNotesDrafts(
-        items.reduce((result, request) => {
-          result[request.id] = request.notas_administrador ?? ''
-          return result
-        }, {}),
-      )
-      setHasLoaded(true)
-      hasLoadedRef.current = true
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      requestInFlightRef.current = false
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
+    const requestPromise = (async () => {
+      try {
+        const items = await listPurchaseRequests({
+          signal: currentRequest.controller.signal,
+          requireAuth: true,
+        })
+        if (currentRequest.id !== requestsRequestRef.current.id) {
+          return
+        }
+
+        setRequests(items)
+        setNotesDrafts(
+          items.reduce((result, request) => {
+            result[request.id] = request.notas_administrador ?? ''
+            return result
+          }, {}),
+        )
+        setHasLoaded(true)
+        hasLoadedRef.current = true
+      } catch (requestError) {
+        if (
+          currentRequest.id !== requestsRequestRef.current.id ||
+          requestError.name === 'AbortError'
+        ) {
+          return
+        }
+
+        setError(requestError.message)
+      } finally {
+        if (currentRequest.id === requestsRequestRef.current.id) {
+          requestsRequestRef.current = {
+            id: currentRequest.id,
+            controller: null,
+          }
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
+      }
+    })()
+
+    return requestPromise
   }, [])
 
   useEffect(() => {
-    const controller = new AbortController()
-    loadRequests({ signal: controller.signal })
-
-    return () => {
-      controller.abort()
-    }
+    loadRequests()
+    return () => cancelCurrentRequest(requestsRequestRef)
   }, [loadRequests])
 
   async function handleSaveNotes(request) {
