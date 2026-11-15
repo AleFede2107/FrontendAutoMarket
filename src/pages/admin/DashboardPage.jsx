@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getDashboardSummary } from '../../services/statisticsService.js'
 import {
   createVehicle,
   deleteVehicle,
@@ -13,10 +14,12 @@ const PAGE_SIZE = 10
 
 function DashboardPage() {
   const [vehicles, setVehicles] = useState([])
+  const [summary, setSummary] = useState(null)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [summaryError, setSummaryError] = useState('')
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
   const [search, setSearch] = useState('')
@@ -27,8 +30,11 @@ function DashboardPage() {
   const [deletingId, setDeletingId] = useState(null)
   const hasLoadedRef = useRef(false)
   const requestInFlightRef = useRef(false)
+  const summaryRequestRef = useRef(0)
+  const vehiclesRequestRef = useRef(0)
 
-  const loadVehicles = useCallback(async () => {
+  const loadVehicles = useCallback(async (signal) => {
+    const currentRequest = ++vehiclesRequestRef.current
     if (requestInFlightRef.current) {
       return false
     }
@@ -43,35 +49,64 @@ function DashboardPage() {
     }
 
     try {
-      const items = await listVehicles()
+      const items = await listVehicles({ signal })
+      if (currentRequest !== vehiclesRequestRef.current) {
+        return false
+      }
+
       setVehicles(items)
       setHasLoaded(true)
       hasLoadedRef.current = true
       return true
     } catch (requestError) {
+      if (currentRequest !== vehiclesRequestRef.current) {
+        return false
+      }
+
       setError(requestError.message)
       return false
     } finally {
-      requestInFlightRef.current = false
-      setIsLoading(false)
-      setIsRefreshing(false)
+      if (currentRequest === vehiclesRequestRef.current) {
+        requestInFlightRef.current = false
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
+    }
+  }, [])
+
+  const loadSummary = useCallback(async (signal) => {
+    const currentRequest = ++summaryRequestRef.current
+    setSummaryError('')
+
+    try {
+      const item = await getDashboardSummary({ signal })
+      if (currentRequest !== summaryRequestRef.current) {
+        return
+      }
+
+      setSummary(item)
+    } catch (requestError) {
+      if (currentRequest !== summaryRequestRef.current) {
+        return
+      }
+
+      setSummaryError(requestError.message)
+      setSummary(null)
     }
   }, [])
 
   useEffect(() => {
-    listVehicles()
-      .then((items) => {
-        setVehicles(items)
-        setHasLoaded(true)
-        hasLoadedRef.current = true
-      })
-      .catch((requestError) => {
-        setError(requestError.message)
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
-  }, [])
+    const vehicleController = new AbortController()
+    const summaryController = new AbortController()
+
+    loadVehicles(vehicleController.signal)
+    loadSummary(summaryController.signal)
+
+    return () => {
+      vehicleController.abort()
+      summaryController.abort()
+    }
+  }, [loadSummary, loadVehicles])
 
   const filteredVehicles = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase()
@@ -103,7 +138,8 @@ function DashboardPage() {
     await createVehicle(formData)
     setActionError('')
     setNotice('El vehículo se agregó correctamente.')
-    await loadVehicles()
+    await loadVehicles(new AbortController().signal)
+    await loadSummary(new AbortController().signal)
   }
 
   async function handleDelete(vehicle) {
@@ -123,7 +159,8 @@ function DashboardPage() {
     try {
       await deleteVehicle(vehicle.id)
       setNotice(`Se eliminó el registro de ${vehicleName}.`)
-      await loadVehicles()
+      await loadVehicles(new AbortController().signal)
+      await loadSummary(new AbortController().signal)
     } catch (requestError) {
       setActionError(requestError.message)
     } finally {
@@ -145,7 +182,12 @@ function DashboardPage() {
           <button
             className="admin-button admin-button-secondary"
             type="button"
-            onClick={loadVehicles}
+            onClick={() => {
+              const vehicleController = new AbortController()
+              const summaryController = new AbortController()
+              loadVehicles(vehicleController.signal)
+              loadSummary(summaryController.signal)
+            }}
             disabled={isLoading || isRefreshing}
           >
             {isRefreshing ? 'Actualizando…' : 'Actualizar listado'}
@@ -174,12 +216,21 @@ function DashboardPage() {
           <button
             className="admin-button admin-button-small admin-button-secondary"
             type="button"
-            onClick={loadVehicles}
+            onClick={() => {
+              const controller = new AbortController()
+              loadVehicles(controller.signal)
+            }}
             disabled={isLoading || isRefreshing}
           >
             Reintentar
           </button>
         </div>
+      )}
+
+      {summaryError && (
+        <p className="admin-alert admin-alert-info" role="status">
+          {summaryError} El inventario puede seguir funcionando mientras el resumen se recarga.
+        </p>
       )}
 
       {actionError && (
@@ -200,7 +251,7 @@ function DashboardPage() {
         </section>
       ) : hasLoaded ? (
         <>
-          <InventorySummary vehicles={vehicles} />
+          <InventorySummary summary={summary} vehicles={vehicles} error={summaryError} />
 
           <section className="admin-card admin-inventory-card">
             <div className="admin-section-heading">
@@ -215,12 +266,6 @@ function DashboardPage() {
                 {filteredVehicles.length} registros
               </span>
             </div>
-
-            <p className="admin-alert admin-alert-info">
-              La edición está temporalmente no disponible: el contrato actual
-              combina un cuerpo JSON con una parte multipart de fotografía. No
-              se enviará una solicitud de actualización inválida.
-            </p>
 
             <VehicleFilters
               search={search}

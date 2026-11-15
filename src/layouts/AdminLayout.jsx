@@ -1,7 +1,29 @@
-import { Link, NavLink, Outlet } from 'react-router'
+import { useEffect } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { clearSession, getStoredSession } from '../services/authService.js'
 import '../pages/admin/admin.css'
 
 function AdminLayout() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const session = getStoredSession()
+
+  useEffect(() => {
+    if (!session) {
+      navigate('/admin/login', { replace: true, state: { from: location.pathname } })
+      return
+    }
+  }, [location.pathname, navigate, session])
+
+  if (!session) {
+    return null
+  }
+
+  function handleLogout() {
+    clearSession()
+    navigate('/admin/login?reason=session_closed', { replace: true })
+  }
+
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -34,6 +56,14 @@ function AdminLayout() {
             Solicitudes de compra
           </NavLink>
         </nav>
+
+        <button
+          className="admin-button admin-button-secondary admin-sidebar-logout"
+          type="button"
+          onClick={handleLogout}
+        >
+          Cerrar sesión
+        </button>
 
         <Link className="admin-store-link" to="/">
           Volver al sitio

@@ -1,67 +1,139 @@
 # Contrato entre frontend y backend
 
-Este contrato está pendiente de acordar entre ambos equipos. Los puntos siguientes
-son preguntas abiertas, no decisiones ni propuestas de endpoints confirmadas:
+## Fuente revisada
 
-- URL base y endpoints.
-- Modelo de auto y sus campos.
-- Si cada auto es una unidad única o existe stock.
-- Filtros y paginación.
-- Estructura de las respuestas y errores.
-- Datos necesarios para crear una orden.
-- Moneda y representación de precios.
-- Autenticación y sesión del administrador.
-- Configuración de CORS.
+Se comprobó el documento OpenAPI desplegado en
+`https://backendconcesionario.onrender.com/openapi.json` y se comparó con el
+estado local del frontend. El backend desplegado ya incluye varias operaciones de
+administración que no estaban documentadas en el código GitHub que se revisó en
+el repositorio local.
 
-## Autenticación administrativa
+## Convenciones compartidas
 
-La documentación OpenAPI desplegada en
-`https://backendconcesionario.onrender.com/openapi.json` define:
+- El frontend usa `VITE_API_BASE_URL` como origen del backend y agrega
+  `/api/v1` a cada ruta. La variable no debe incluir ese prefijo.
+- La URL recomendada para el despliegue es
+  `https://backendconcesionario.onrender.com`.
+- Las llamadas protegidas usan `Authorization: Bearer <token>`.
+- Las respuestas del backend mantienen la convención `code`, `message` y
+  `item`/`items` según el caso.
+- El frontend no conecta directamente con la base de datos ni guarda la
+  contraseña del administrador.
 
-- `POST /api/v1/administradores/IniciarSesion`
-- Body JSON requerido:
-  - `correo`: email válido.
-  - `password`: cadena de 1 a 128 caracteres.
-- Respuesta `200`: `ResponseItem[AdministradorResponse]` con `code`, `message`
-  e `item`; el item incluye `id`, `nombre`, `correo`, `activo`, `creado_en` y
-  `actualizado_en`.
-- OpenAPI documenta también `422` para errores de validación.
-- Una solicitud de prueba con credenciales inválidas al endpoint desplegado
-  respondió `401` con `detail.code: 0` y el mensaje genérico
-  `Correo o contraseña incorrectos.`.
+## Autenticación
 
-El frontend consume este endpoint a través de `src/services/authService.js`,
-usando `VITE_API_BASE_URL`. Al recibir HTTP 200 con `code: 1` y un item válido,
-navega a `/admin`. Los errores 401, 422, conexión y respuesta inesperada se
-muestran en el formulario. La contraseña sólo vive en el estado del formulario
-y en el body de la petición; React no la persiste ni valida las credenciales.
+El backend expone `POST /api/v1/administradores/IniciarSesion` con JSON:
 
-OpenAPI no declara esquemas de seguridad, token, endpoint de sesión ni header
-`Set-Cookie`; la respuesta exitosa documentada sólo contiene el administrador.
-La prueba de credenciales incorrectas tampoco recibió una cookie. No se guarda
-ni se inventa un JWT o una sesión en el frontend. Una prueba exitosa no se
-realizó con credenciales reales, así que backend debe confirmar si establece
-alguna cookie al autenticar correctamente.
+```json
+{
+  "correo": "admin@automarket.com",
+  "password": "secret"
+}
+```
 
-La integración desde navegador está bloqueada actualmente por CORS: un
-preflight `OPTIONS` desde `http://127.0.0.1:5173` respondió `405` sin
-`Access-Control-Allow-Origin`, y el navegador rechazó el POST JSON. Backend
-debe habilitar CORS para los orígenes reales de desarrollo y producción,
-incluyendo `POST`, `OPTIONS` y el header `Content-Type`. El frontend no puede
-sortear esta política ni usar `no-cors`, porque necesita leer el resultado de
-autenticación.
+La respuesta devuelve `code`, `message`, `item`, `access_token`, `token_type` y
+`expires_in` en minutos. El frontend guarda el administrador y el token en
+`sessionStorage`, sin persistencia extra ni renovación automática.
 
-La ruta React `/admin` existe, pero no hay evidencia de protección de ruta o
-sesión persistente en este contrato. El backend debe documentar e implementar
-un mecanismo de sesión/autorización para proteger las páginas administrativas
-y sus APIs; el redirect del frontend no es una medida de seguridad.
+## Vehículos
 
-## Reglas de integración
+El backend desplegado expone estas rutas bajo `/api/v1/vehiculos`:
 
-- Las peticiones se centralizarán en `src/services`.
-- Los datos de prueba irán en `src/mocks`.
-- El frontend no se conectará directamente con la base de datos.
-- El backend validará precios, disponibilidad, totales y permisos.
-- Los cambios del contrato se coordinarán entre ambos equipos.
-- Las páginas administrativas actuales no tienen protección. La autenticación y
-  autorización deberán implementarse y validarse también en el backend.
+- `GET /ListarVehiculos`
+- `GET /ObtenerVehiculo/{vehiculo_id}`
+- `POST /CrearVehiculo`
+- `PUT /ActualizarVehiculo/{vehiculo_id}`
+- `DELETE /EliminarVehiculo/{vehiculo_id}`
+
+El esquema `VehiculoResponse` incluye:
+`id`, `condicion`, `marca`, `modelo`, `anio`, `precio`, `kilometraje`,
+`transmision`, `combustible`, `descripcion`, `fotoauto`, `estado`, `creado_en` y
+`actualizado_en`.
+
+La operación de actualización sigue estando documentada como multipart/form-data
+con un esquema `Body_actualizar_vehiculo_api_v1_vehiculos_ActualizarVehiculo__vehiculo_id__put`
+que combina `body` y `fotoauto`. El formato no es compatible con un JSON plano
+ni con el flujo de creación y, por eso, la edición de vehículos queda
+bloqueada en la interfaz hasta que el backend defina una variante consistente.
+
+## Estadísticas
+
+El backend ofrece `GET /api/v1/estadisticas/Resumen`.
+
+Los campos documentados incluyen:
+
+- `vehiculos_total`
+- `vehiculos_disponibles`
+- `vehiculos_reservados`
+- `vehiculos_vendidos`
+- `solicitudes_total`
+- `solicitudes_pendientes`
+- `solicitudes_contactadas`
+- `solicitudes_confirmadas`
+- `solicitudes_rechazadas`
+- `solicitudes_canceladas`
+- `solicitudes_completadas`
+- `solicitudes_total_estimado`
+- `solicitudes_confirmadas_completadas_estimado`
+- `solicitudes_por_mes` con `{ anio, mes, total }`
+
+Los importes se muestran como estimados, sin asumir moneda, y se tratan como
+valores numéricos/decimales que pueden llegar como cadenas.
+
+## Solicitudes de compra
+
+El backend desplegado expone:
+
+- `GET /api/v1/solicitudes/ListarSolicitudes`
+- `PATCH /api/v1/solicitudes/ActualizarEstado/{solicitud_id}`
+- `PATCH /api/v1/solicitudes/ActualizarNotas/{solicitud_id}`
+
+La actualización de estado usa JSON:
+
+```json
+{ "estado": "contactado" }
+```
+
+La actualización de notas usa JSON:
+
+```json
+{ "notas_administrador": "Texto" }
+```
+
+El campo `notas_administrador` acepta null para limpiar el texto y tiene un
+máximo de 5000 caracteres.
+
+## Diferencias con el backend de GitHub
+
+El código local del frontend estaba preparado para un backend más antiguo, que no
+definía autenticación ni operaciones de administración. El servidor desplegado ya
+incluye:
+
+- login de administrador
+- token JWT con `access_token`
+- resumen estadístico del panel
+- listado y gestión de solicitudes de compra
+- rutas protegidas con `Authorization`
+
+Además, el backend desplegado documenta un formato multipart para la edición del
+vehículo que sigue sin ser compatible con el flujo de actualización del
+frontend, por lo que esa acción sigue deshabilitada por diseño.
+
+## Limitaciones pendientes
+
+- El backend debe permitir el origen real del frontend en CORS y los headers
+  necesarios (`Authorization`, `Content-Type`, `Accept`) si el navegador bloquea
+  la petición.
+- La edición de vehículos requiere que el backend defina y publique un formato
+  de actualización compatible; no se debe simular éxito ni inventar rutas.
+- La renovación automática del token queda fuera de este alcance.
+
+## Verificación del cliente
+
+El cliente centraliza el acceso HTTP en `src/services` y valida:
+
+- el origen del backend en `.env.example`
+- la sesión del administrador en `sessionStorage`
+- la presencia del token antes de peticiones protegidas
+- `code`, `status` y mensajes de negocio
+- manejo de 401/404/409/422 con mensajes comprensibles para el usuario

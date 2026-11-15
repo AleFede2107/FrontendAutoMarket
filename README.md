@@ -80,6 +80,14 @@ son públicas y nunca deben contener contraseñas, tokens ni otros secretos.
 Los archivos locales de entorno están excluidos de Git; `.env.example` sí se
 conserva en el repositorio.
 
+## Sesión y autenticación
+
+El login de administrador conserva la sesión del usuario en `sessionStorage` para
+mantenerla mientras la pestaña sigue abierta. No se almacena la contraseña y no
+se activa la opción de "recordarme" persistente. El frontend valida los datos
+recuperados antes de usarlos y los demás endpoints protegidos requieren un
+`Authorization: Bearer <token>` enviado por el cliente.
+
 ## Estado actual y seguridad
 
 El login administrativo consume `POST /api/v1/administradores/IniciarSesion`

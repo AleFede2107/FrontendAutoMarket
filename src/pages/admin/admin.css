@@ -81,6 +81,10 @@
   background: #155eef;
 }
 
+.admin-sidebar-logout {
+  margin-top: 0.75rem;
+}
+
 .admin-store-link {
   margin-top: auto;
   padding: 0.75rem 0.65rem 0;
@@ -92,6 +96,32 @@
 .admin-main {
   min-width: 0;
   padding: 2rem clamp(1rem, 3.2vw, 3rem);
+}
+
+.admin-login-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: linear-gradient(180deg, #f3f6fb 0%, #edf4ff 100%);
+}
+
+.admin-login-card {
+  width: min(100%, 32rem);
+  padding: 2rem;
+}
+
+.admin-login-card h1 {
+  margin: 0;
+  color: #15243b;
+  font-size: clamp(2rem, 3vw, 2.5rem);
+  letter-spacing: -0.045em;
+}
+
+.admin-login-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
 }
 
 .admin-page {
@@ -223,6 +253,18 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.25rem;
+}
+
+.admin-summary-chart {
+  padding: 1.35rem;
+  margin: 0 0 1.25rem;
+}
+
+.admin-month-chart {
+  display: block;
+  width: 100%;
+  height: 180px;
+  margin-top: 0.75rem;
 }
 
 .admin-summary-card {
@@ -517,6 +559,39 @@
 
 .admin-request-client {
   min-width: 12rem;
+}
+
+.admin-request-message,
+.admin-request-vehicles {
+  margin: 0;
+  color: #4a5975;
+  line-height: 1.5;
+}
+
+.admin-request-status-cell {
+  min-width: 10rem;
+}
+
+.admin-request-notes {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 18rem;
+}
+
+.admin-field-inline {
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .admin-request-vehicles {
