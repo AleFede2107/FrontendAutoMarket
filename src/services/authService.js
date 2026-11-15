@@ -1,169 +1,62 @@
-import { buildApiUrl } from './httpConfig.js'
-
-const SESSION_STORAGE_KEY = 'automarket_admin_session'
-
-function isPlainObject(value) {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function normalizeErrorMessage(payload, status) {
-  if (typeof payload?.detail === 'string' && payload.detail.trim()) {
-    return payload.detail
-  }
-
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message
-  }
-
-  if (status === 401) {
-    return 'Credenciales inválidas o sesión expirada.'
-  }
-
-  if (status === 422) {
-    return 'Los datos enviados no cumplen con las validaciones del servidor.'
-  }
-
-  return `El servidor respondió con el estado ${status}.`
-}
-
-export function isValidSession(session) {
-  if (!isPlainObject(session)) {
-    return false
-  }
-
-  const hasAdmin = isPlainObject(session.admin) && Number.isFinite(Number(session.admin.id))
-  const hasToken = typeof session.token === 'string' && session.token.trim().length > 0
-  const hasTokenType = typeof session.tokenType === 'string' && session.tokenType.trim().length > 0
-
-  return hasAdmin && hasToken && hasTokenType
-}
-
-export function clearSession() {
-  if (typeof window !== 'undefined') {
-    window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
-  }
-}
-
-export function getStoredSession() {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const rawSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY)
-
-  if (!rawSession) {
-    return null
-  }
-
-  try {
-    const parsedSession = JSON.parse(rawSession)
-
-    if (!isValidSession(parsedSession)) {
-      clearSession()
-      return null
-    }
-
-    return parsedSession
-  } catch {
-    clearSession()
-    return null
-  }
-}
-
-export function saveSession(session) {
-  if (!isValidSession(session)) {
-    return false
-  }
-
-  if (typeof window === 'undefined') {
-    return false
-  }
-
-  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session))
-  return true
-}
-
-export function getAccessToken() {
-  return getStoredSession()?.token ?? ''
-}
-
-export function restoreSession() {
-  return getStoredSession()
-}
-
-export function normalizeLoginResponse(response) {
-  if (!isPlainObject(response)) {
-    return null
-  }
-
-  const admin = isPlainObject(response.item) ? response.item : null
-  const token = typeof response.access_token === 'string' ? response.access_token : ''
-
-  if (!admin || !token) {
-    return null
-  }
-
-  const expiresInMinutes = Number(response.expires_in)
-  const expiresAt = Number.isFinite(expiresInMinutes)
-    ? Date.now() + expiresInMinutes * 60_000
-    : null
-
-  return {
-    admin,
-    token,
-    tokenType: typeof response.token_type === 'string' ? response.token_type : 'Bearer',
-    expiresInMinutes: Number.isFinite(expiresInMinutes) ? expiresInMinutes : 0,
-    expiresAt,
-  }
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '')
+const LOGIN_PATH = '/api/v1/administradores/IniciarSesion'
 
 export async function loginAdmin({ correo, password }) {
-  if (typeof correo !== 'string' || !correo.trim()) {
-    throw new Error('Debes escribir tu correo para iniciar sesión.')
+  if (!API_BASE_URL) {
+    throw new Error('Configura VITE_API_BASE_URL para conectar con AutoMarket API.')
   }
 
-  if (typeof password !== 'string' || !password.trim()) {
-    throw new Error('Debes escribir tu contraseña para iniciar sesión.')
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${LOGIN_PATH}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ correo, password }),
+    })
+  } catch {
+    throw new Error(
+      'No se pudo conectar con AutoMarket API. Verifica la conexión y la configuración CORS.',
+    )
   }
 
-  const response = await fetch(buildApiUrl('/administradores/IniciarSesion'), {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ correo: correo.trim(), password }),
-  })
-
-  let payload = null
+  let payload
 
   try {
     payload = await response.json()
   } catch {
-    if (response.ok) {
-      throw new Error('El backend no devolvió una respuesta válida durante el login.')
-    }
+    throw new Error('AutoMarket API devolvió una respuesta no válida.')
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      payload?.detail?.message ?? 'Correo o contraseña incorrectos.',
+    )
+  }
+
+  if (response.status === 422) {
+    throw new Error('Revisa el formato del correo y vuelve a intentarlo.')
   }
 
   if (!response.ok) {
-    throw new Error(normalizeErrorMessage(payload, response.status))
+    throw new Error(
+      `No fue posible iniciar sesión (HTTP ${response.status}). Inténtalo nuevamente.`,
+    )
   }
 
-  if (payload?.code !== 1) {
-    throw new Error(payload?.message ?? 'El login no se completó correctamente.')
+  if (
+    payload?.code !== 1 ||
+    !payload.item ||
+    typeof payload.item.id !== 'number' ||
+    typeof payload.item.activo !== 'boolean'
+  ) {
+    throw new Error(
+      payload?.message || 'AutoMarket API devolvió datos de administrador no válidos.',
+    )
   }
 
-  const session = normalizeLoginResponse(payload)
-
-  if (!session) {
-    throw new Error('El backend no devolvió una sesión válida para el administrador.')
-  }
-
-  saveSession(session)
-  return session
-}
-
-export function logoutAdmin() {
-  clearSession()
-  return true
+  return payload.item
 }

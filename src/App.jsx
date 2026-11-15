@@ -17,8 +17,9 @@ function App() {
           <Route index element={<HomePage />} />
           <Route path="autos" element={<CatalogPage />} />
           <Route path="carrito" element={<CartPage />} />
-          <Route path="admin/login" element={<LoginPage />} />
         </Route>
+        <Route path="login" element={<LoginPage />} />
+        <Route path="admin/login" element={<LoginPage />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="ordenes" element={<OrdersPage />} />
