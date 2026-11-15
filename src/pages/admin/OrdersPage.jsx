@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { listPurchaseRequestStates } from '../../services/catalogService.js'
 import {
   listPurchaseRequests,
   updatePurchaseRequestNotes,
@@ -50,6 +51,15 @@ function normalizeState(value) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+function getStateLabel(state) {
+  if (Object.hasOwn(stateLabels, state)) {
+    return stateLabels[state]
+  }
+
+  const readableState = state.replace(/[_-]+/g, ' ').trim()
+  return `${readableState.charAt(0).toLocaleUpperCase()}${readableState.slice(1)}`
+}
+
 function formatDate(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date)
@@ -66,16 +76,21 @@ function formatAmount(value) {
 
 function OrdersPage() {
   const [requests, setRequests] = useState([])
+  const [requestStates, setRequestStates] = useState([])
+  const [selectedStatus, setSelectedStatus] = useState('')
   const [notesDrafts, setNotesDrafts] = useState({})
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true)
   const [error, setError] = useState('')
+  const [catalogError, setCatalogError] = useState('')
   const [notice, setNotice] = useState('')
   const [hasLoaded, setHasLoaded] = useState(false)
   const [savingNotesId, setSavingNotesId] = useState(null)
   const [savingStatusId, setSavingStatusId] = useState(null)
   const hasLoadedRef = useRef(false)
   const requestsRequestRef = useRef({ id: 0, controller: null })
+  const catalogRequestRef = useRef({ id: 0, controller: null })
 
   const loadRequests = useCallback(() => {
     const previousRequest = requestsRequestRef.current
@@ -136,10 +151,67 @@ function OrdersPage() {
     return requestPromise
   }, [])
 
+  const loadRequestStates = useCallback(() => {
+    const previousRequest = catalogRequestRef.current
+    const currentRequest = {
+      id: previousRequest.id + 1,
+      controller: new AbortController(),
+    }
+    catalogRequestRef.current = currentRequest
+    previousRequest.controller?.abort()
+    setCatalogError('')
+    setIsCatalogLoading(true)
+
+    return (async () => {
+      try {
+        const states = await listPurchaseRequestStates({
+          signal: currentRequest.controller.signal,
+        })
+        if (currentRequest.id !== catalogRequestRef.current.id) {
+          return
+        }
+
+        setRequestStates(states)
+        setSelectedStatus((currentStatus) =>
+          currentStatus && !states.includes(currentStatus) ? '' : currentStatus,
+        )
+      } catch (requestError) {
+        if (
+          currentRequest.id !== catalogRequestRef.current.id ||
+          requestError.name === 'AbortError'
+        ) {
+          return
+        }
+
+        setCatalogError(requestError.message)
+      } finally {
+        if (currentRequest.id === catalogRequestRef.current.id) {
+          catalogRequestRef.current = {
+            id: currentRequest.id,
+            controller: null,
+          }
+          setIsCatalogLoading(false)
+        }
+      }
+    })()
+  }, [])
+
   useEffect(() => {
     loadRequests()
-    return () => cancelCurrentRequest(requestsRequestRef)
-  }, [loadRequests])
+    loadRequestStates()
+    return () => {
+      cancelCurrentRequest(requestsRequestRef)
+      cancelCurrentRequest(catalogRequestRef)
+    }
+  }, [loadRequestStates, loadRequests])
+
+  const filteredRequests = useMemo(
+    () =>
+      selectedStatus
+        ? requests.filter((request) => request.estado === selectedStatus)
+        : requests,
+    [requests, selectedStatus],
+  )
 
   async function handleSaveNotes(request) {
     if (savingNotesId !== null) {
@@ -256,6 +328,26 @@ function OrdersPage() {
         </button>
       </header>
 
+      {isCatalogLoading && (
+        <p className="admin-alert admin-alert-info" role="status">
+          Cargando estados de solicitudes…
+        </p>
+      )}
+
+      {catalogError && (
+        <div className="admin-alert admin-alert-info" role="alert">
+          <span>No se pudo cargar el catálogo de estados: {catalogError}</span>
+          <button
+            className="admin-button admin-button-small admin-button-secondary"
+            type="button"
+            onClick={loadRequestStates}
+            disabled={isCatalogLoading}
+          >
+            Reintentar catálogo
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="admin-alert admin-alert-error" role="alert">
           <span>
@@ -290,12 +382,40 @@ function OrdersPage() {
             <div>
               <h2>Solicitudes registradas</h2>
               <p>
-                La lista completa se usa para filtrar y paginar localmente si se agregan filtros en el futuro.
+                El filtro por estado se aplica en este navegador sobre el listado recibido.
               </p>
             </div>
             <span className="admin-section-count">
-              {requests.length} registros
+              Mostrando {filteredRequests.length} de {requests.length} solicitudes
             </span>
+          </div>
+
+          <div className="admin-filters admin-request-filters">
+            <label className="admin-field" htmlFor="request-state-filter">
+              <span>Estado</span>
+              <select
+                id="request-state-filter"
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value)}
+                disabled={isCatalogLoading}
+              >
+                <option value="">Todos los estados</option>
+                {requestStates.map((state) => (
+                  <option key={state} value={state}>
+                    {getStateLabel(state)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedStatus && (
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => setSelectedStatus('')}
+              >
+                Limpiar filtro
+              </button>
+            )}
           </div>
 
           {requests.length === 0 ? (
@@ -304,6 +424,11 @@ function OrdersPage() {
               <p>
                 La consulta se completó y el backend devolvió una lista vacía.
               </p>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="admin-empty-state">
+              <h3>Sin resultados para este estado</h3>
+              <p>No hay solicitudes que coincidan con el estado seleccionado.</p>
             </div>
           ) : (
             <div className="admin-table-scroll">
@@ -321,7 +446,7 @@ function OrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map((request) => {
+                  {filteredRequests.map((request) => {
                     const detailList = Array.isArray(request.detalles) ? request.detalles : []
                     const currentStatus = normalizeState(request.estado)
                     const allowedStatusOptions = allowedTransitions[currentStatus] ?? []
@@ -367,11 +492,11 @@ function OrdersPage() {
                                 disabled={savingStatusId !== null || allowedStatusOptions.length === 0}
                               >
                                 <option value={currentStatus}>
-                                  {stateLabels[currentStatus] ?? currentStatus}
+                                  {getStateLabel(currentStatus)}
                                 </option>
                                 {allowedStatusOptions.map((statusKey) => (
                                   <option key={statusKey} value={statusKey}>
-                                    {stateLabels[statusKey] ?? statusKey}
+                                    {getStateLabel(statusKey)}
                                   </option>
                                 ))}
                               </select>

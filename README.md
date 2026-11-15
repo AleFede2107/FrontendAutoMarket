@@ -51,9 +51,9 @@ npm run build
 
 Las vistas de inicio, catálogo, carrito y login siguen provisionales. El panel
 administrativo ya consulta el inventario y permite agregar y eliminar registros;
-la pantalla de solicitudes consulta el listado disponible en el backend. La
-edición de vehículos permanece deshabilitada hasta que backend defina un formato
-de actualización compatible.
+la pantalla de solicitudes obtiene los estados del catálogo del backend y filtra
+localmente el listado recibido. La edición de vehículos permanece deshabilitada
+hasta que backend defina un formato de actualización compatible.
 
 ## Estructura de carpetas
 

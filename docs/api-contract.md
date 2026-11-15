@@ -88,6 +88,14 @@ El backend desplegado expone:
 - `PATCH /api/v1/solicitudes/ActualizarEstado/{solicitud_id}`
 - `PATCH /api/v1/solicitudes/ActualizarNotas/{solicitud_id}`
 
+La instancia local comprobada expone el catálogo
+`GET /api/v1/catalogosgenerales/EstadosSolicitudes`, que devuelve los estados en
+`items` sin requerir autenticación. Su OpenAPI marca
+`GET /api/v1/solicitudes/ListarSolicitudes` con HTTP Bearer y no declara
+parámetros de filtro; según el contrato, devuelve el listado completo en `items`.
+La pantalla administrativa carga el catálogo por separado y aplica el filtro en
+el navegador sobre ese listado.
+
 La actualización de estado usa JSON:
 
 ```json

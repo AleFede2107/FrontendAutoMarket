@@ -793,3 +793,13 @@
     padding: 1rem;
   }
 }
+
+.admin-request-filters {
+  grid-template-columns: minmax(13rem, 1fr) auto;
+}
+
+@media (max-width: 520px) {
+  .admin-request-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
