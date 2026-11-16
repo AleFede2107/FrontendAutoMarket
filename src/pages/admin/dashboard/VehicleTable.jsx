@@ -54,6 +54,7 @@ function VehicleTable({
   page,
   pageSize,
   onPageChange,
+  onEdit,
   onDelete,
   deletingId,
 }) {
@@ -122,10 +123,10 @@ function VehicleTable({
                       <button
                         className="admin-button admin-button-small admin-button-secondary"
                         type="button"
-                        disabled
-                        title="El contrato actual no define una solicitud de actualización válida."
+                        onClick={() => onEdit(vehicle)}
+                        disabled={deletingId !== null}
                       >
-                        Editar (no disponible)
+                        Editar
                       </button>
                       <button
                         className="admin-button admin-button-small admin-button-danger"

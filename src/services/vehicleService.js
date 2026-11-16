@@ -86,6 +86,24 @@ export function createVehicle(formData, options = {}) {
   })
 }
 
+export async function updateVehicle(vehicleId, formData, options = {}) {
+  const response = await apiRequest(
+    `/vehiculos/ActualizarVehiculo/${vehicleId}`,
+    {
+      ...options,
+      method: 'PUT',
+      body: formData,
+      requireAuth: true,
+    },
+  )
+
+  if (response?.code !== 1) {
+    throw new Error('El servidor no confirmó la actualización del vehículo.')
+  }
+
+  return response
+}
+
 export function deleteVehicle(vehicleId, options = {}) {
   return apiRequest(`/vehiculos/EliminarVehiculo/${vehicleId}`, {
     method: 'DELETE',

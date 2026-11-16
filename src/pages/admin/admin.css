@@ -460,6 +460,14 @@
   object-fit: cover;
 }
 
+.admin-edit-current-photo {
+  width: min(100%, 22rem);
+  max-height: 12rem;
+  border: 1px solid #e0e6ef;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
 .admin-status {
   display: inline-flex;
   align-items: center;

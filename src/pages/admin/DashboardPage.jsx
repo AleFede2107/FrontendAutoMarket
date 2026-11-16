@@ -4,6 +4,7 @@ import {
   createVehicle,
   deleteVehicle,
   listVehicles,
+  updateVehicle,
 } from '../../services/vehicleService.js'
 import InventorySummary from './dashboard/InventorySummary.jsx'
 import VehicleFilters from './dashboard/VehicleFilters.jsx'
@@ -42,6 +43,7 @@ function DashboardPage() {
   const [conditionFilter, setConditionFilter] = useState('')
   const [page, setPage] = useState(1)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingVehicle, setEditingVehicle] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const hasLoadedRef = useRef(false)
   const summaryRequestRef = useRef({ id: 0, controller: null })
@@ -118,20 +120,22 @@ function DashboardPage() {
           signal: currentRequest.controller.signal,
         })
         if (currentRequest.id !== summaryRequestRef.current.id) {
-          return
+          return false
         }
 
         setSummary(item)
+        return true
       } catch (requestError) {
         if (
           currentRequest.id !== summaryRequestRef.current.id ||
           requestError.name === 'AbortError'
         ) {
-          return
+          return false
         }
 
         setSummaryError(requestError.message)
         setSummary(null)
+        return false
       } finally {
         if (currentRequest.id === summaryRequestRef.current.id) {
           summaryRequestRef.current = {
@@ -193,6 +197,31 @@ function DashboardPage() {
     await loadDashboard()
   }
 
+  async function handleUpdate(vehicleId, formData) {
+    await updateVehicle(vehicleId, formData)
+    setActionError('')
+    setNotice('El vehículo se actualizó correctamente.')
+
+    void loadDashboard()
+      .then(([vehiclesUpdated, summaryUpdated]) => {
+        if (!vehiclesUpdated || !summaryUpdated) {
+          setActionError(
+            'El cambio se guardó, pero la vista no pudo actualizarse por completo. Usa “Actualizar listado” para volver a consultar.',
+          )
+        }
+      })
+      .catch((requestError) => {
+        setActionError(
+          `El cambio se guardó, pero no se pudo actualizar la vista: ${requestError.message}`,
+        )
+      })
+  }
+
+  const closeForm = useCallback(() => {
+    setIsFormOpen(false)
+    setEditingVehicle(null)
+  }, [])
+
   async function handleDelete(vehicle) {
     const vehicleName = `${vehicle.marca} ${vehicle.modelo} (${vehicle.anio})`
     const confirmed = window.confirm(
@@ -243,6 +272,7 @@ function DashboardPage() {
             onClick={() => {
               setActionError('')
               setNotice('')
+              setEditingVehicle(null)
               setIsFormOpen(true)
             }}
             disabled={!hasLoaded || isRefreshing || deletingId !== null}
@@ -353,6 +383,12 @@ function DashboardPage() {
               page={Math.min(page, pageCount)}
               pageSize={PAGE_SIZE}
               onPageChange={setPage}
+              onEdit={(vehicle) => {
+                setActionError('')
+                setNotice('')
+                setEditingVehicle(vehicle)
+                setIsFormOpen(true)
+              }}
               onDelete={handleDelete}
               deletingId={deletingId}
             />
@@ -366,8 +402,14 @@ function DashboardPage() {
 
       {isFormOpen && (
         <VehicleForm
-          onClose={() => setIsFormOpen(false)}
-          onCreate={handleCreate}
+          mode={editingVehicle ? 'edit' : 'create'}
+          vehicle={editingVehicle ?? undefined}
+          onClose={closeForm}
+          onSave={(formData) =>
+            editingVehicle
+              ? handleUpdate(editingVehicle.id, formData)
+              : handleCreate(formData)
+          }
         />
       )}
     </div>
