@@ -88,6 +88,44 @@ El backend desplegado expone:
 - `PATCH /api/v1/solicitudes/ActualizarEstado/{solicitud_id}`
 - `PATCH /api/v1/solicitudes/ActualizarNotas/{solicitud_id}`
 
+La instancia local consultada también expone el endpoint público
+`POST /api/v1/solicitudes/CrearSolicitud`.
+
+El catálogo público usa `GET /api/v1/vehiculos/ListarVehiculos`, sin sesión
+administrativa. El frontend adapta explícitamente `marca`, `modelo`, `anio`,
+`precio`, `kilometraje`, `transmision`, `combustible`, `fotoauto` y
+`descripcion` al formato de las tarjetas. Conserva el `id` entero y el `estado`
+sin transformarlos; los campos que no devuelve el backend, como carrocería, no
+se inventan.
+
+La selección del carrito contiene IDs enteros únicos en la clave versionada
+`automarket-cart-v1` de `localStorage`. Los datos personales del formulario no
+se persisten. Antes de enviar, el frontend vuelve a consultar el inventario y
+compara precio y disponibilidad. Esta comprobación no reserva el vehículo ni
+reemplaza validaciones transaccionales en el backend.
+
+La creación es pública y no envía Bearer token:
+
+```json
+{
+  "nombre_cliente": "Cliente de prueba",
+  "correo_cliente": "cliente@example.com",
+  "telefono_cliente": "70000000",
+  "vehiculos_ids": [1, 2],
+  "mensaje_cliente": "Me interesan estos vehículos."
+}
+```
+
+Los IDs son ilustrativos: la interfaz envía únicamente IDs enteros realmente
+seleccionados y revalidados como disponibles. El esquema local consultado
+requiere nombre (2–150 caracteres), correo válido, teléfono (1–30 caracteres)
+y al menos un ID; el mensaje es opcional, con un máximo de 5000 caracteres, y
+se prohíben campos adicionales. El backend crea la solicitud con el estado
+inicial y calcula `total_estimado`. La operación local responde HTTP 201; su
+respuesta exitosa contiene `item` con el ID, estado y total estimado. El
+contrato no define una moneda y enviar una solicitud no constituye pago ni
+reserva confirmada.
+
 La instancia local comprobada expone el catálogo
 `GET /api/v1/catalogosgenerales/EstadosSolicitudes`, que devuelve los estados en
 `items` sin requerir autenticación. Su OpenAPI marca

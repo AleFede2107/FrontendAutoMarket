@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import CatalogFilterPanel from './CatalogFilterPanel.jsx'
 import {
@@ -8,15 +8,14 @@ import {
   readCatalogFilters,
 } from './catalogFilters.js'
 import VehicleCard from '../../components/vehicles/VehicleCard.jsx'
-import { getVehicles } from '../../services/vehicleService.js'
+import { useCart } from '../../context/useCart.js'
+import { listPublicVehicles } from '../../services/vehicleService.js'
 
 const PAGE_SIZE = 6
 
 function formatPrice(price) {
   return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(price)
 }
 
@@ -51,15 +50,19 @@ function VehicleDetailsModal({ vehicle, onClose }) {
         >
           ×
         </button>
-        <img
-          className="vehicle-modal__image"
-          src={vehicle.imageUrl}
-          alt={`${vehicle.brand} ${vehicle.model}`}
-        />
+        {vehicle.imageUrl ? (
+          <img
+            className="vehicle-modal__image"
+            src={vehicle.imageUrl}
+            alt={`${vehicle.brand} ${vehicle.model}`}
+          />
+        ) : (
+          <div className="vehicle-modal__image vehicle-card__image-placeholder">
+            Sin fotografía
+          </div>
+        )}
         <div className="vehicle-modal__content">
-          <span className="eyebrow">
-            {vehicle.bodyStyle} · {vehicle.year}
-          </span>
+          <span className="eyebrow">{vehicle.year}</span>
           <h2 id="vehicle-modal-title">
             {vehicle.brand} {vehicle.model}
           </h2>
@@ -98,6 +101,7 @@ function VehicleDetailsModal({ vehicle, onClose }) {
 
 function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { addVehicle, vehicleIds } = useCart()
   const filters = useMemo(
     () => readCatalogFilters(searchParams),
     [searchParams],
@@ -108,25 +112,39 @@ function CatalogPage() {
   const [error, setError] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const vehiclesRequestRef = useRef(0)
+  const vehiclesControllerRef = useRef(null)
 
   useEffect(() => {
-    let active = true
+    const requestId = vehiclesRequestRef.current + 1
+    vehiclesRequestRef.current = requestId
+    const controller = new AbortController()
+    vehiclesControllerRef.current = controller
 
-    getVehicles()
+    listPublicVehicles({ signal: controller.signal })
       .then((result) => {
-        if (active) setVehicles(result)
+        if (vehiclesRequestRef.current === requestId) {
+          setVehicles(result)
+        }
       })
-      .catch(() => {
-        if (active) {
-          setError('No pudimos cargar los vehículos. Inténtalo de nuevo más tarde.')
+      .catch((loadError) => {
+        if (
+          vehiclesRequestRef.current === requestId &&
+          loadError?.name !== 'AbortError'
+        ) {
+          setError('No pudimos cargar los vehículos. Inténtalo de nuevo.')
         }
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (vehiclesRequestRef.current === requestId) {
+          setLoading(false)
+          vehiclesControllerRef.current = null
+        }
       })
 
     return () => {
-      active = false
+      vehiclesRequestRef.current += 1
+      vehiclesControllerRef.current?.abort()
     }
   }, [])
 
@@ -163,6 +181,37 @@ function CatalogPage() {
 
   function changePage(page) {
     setCurrentPage(page)
+  }
+
+  function retryVehicles() {
+    const requestId = vehiclesRequestRef.current + 1
+    vehiclesRequestRef.current = requestId
+    vehiclesControllerRef.current?.abort()
+    const controller = new AbortController()
+    vehiclesControllerRef.current = controller
+    setLoading(true)
+    setError('')
+
+    listPublicVehicles({ signal: controller.signal })
+      .then((result) => {
+        if (vehiclesRequestRef.current === requestId) {
+          setVehicles(result)
+        }
+      })
+      .catch((loadError) => {
+        if (
+          vehiclesRequestRef.current === requestId &&
+          loadError?.name !== 'AbortError'
+        ) {
+          setError('No pudimos cargar los vehículos. Inténtalo de nuevo.')
+        }
+      })
+      .finally(() => {
+        if (vehiclesRequestRef.current === requestId) {
+          setLoading(false)
+          vehiclesControllerRef.current = null
+        }
+      })
   }
 
   return (
@@ -257,10 +306,18 @@ function CatalogPage() {
                 <button
                   className="button button--outline"
                   type="button"
-                  onClick={() => window.location.reload()}
+                  onClick={retryVehicles}
                 >
                   Intentar de nuevo
                 </button>
+              </div>
+            ) : vehicles.length === 0 ? (
+              <div className="catalog-message">
+                <span className="empty-state-icon" aria-hidden="true">
+                  directions_car
+                </span>
+                <h3>No hay vehículos disponibles en el catálogo</h3>
+                <p>Vuelve a intentarlo más tarde.</p>
               </div>
             ) : filteredVehicles.length === 0 ? (
               <div className="catalog-message">
@@ -288,6 +345,8 @@ function CatalogPage() {
                       key={vehicle.id}
                       vehicle={vehicle}
                       onDetails={setSelectedVehicle}
+                      onAdd={addVehicle}
+                      isSelected={vehicleIds.includes(vehicle.id)}
                     />
                   ))}
                 </div>

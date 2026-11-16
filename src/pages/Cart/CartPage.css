@@ -133,6 +133,12 @@
   gap: 1.5rem;
 }
 
+.cart-summary-column {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
 .cart-selection,
 .cart-summary,
 .cart-vehicle-card,
@@ -199,6 +205,17 @@
   object-fit: cover;
 }
 
+.cart-image-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  color: #78869b;
+  background: #e8edf5;
+  font-size: 0.75rem;
+  place-items: center;
+}
+
 .cart-vehicle-card__year {
   position: absolute;
   top: 0.75rem;
@@ -240,6 +257,18 @@
   font-size: 1.08rem;
   letter-spacing: -0.035em;
   line-height: 1.35;
+}
+
+.cart-vehicle-status {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: #287044;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.cart-vehicle-status.is-unavailable {
+  color: #a33b2c;
 }
 
 .cart-remove {
@@ -376,6 +405,10 @@
   padding: 1.25rem;
 }
 
+.cart-summary.is-form-open {
+  position: static;
+}
+
 .cart-summary__heading {
   display: flex;
   margin-bottom: 1.25rem;
@@ -434,6 +467,20 @@
   line-height: 1.55;
 }
 
+.cart-unavailable-message,
+.cart-submit-error,
+.cart-field-error,
+.cart-review-changes,
+.cart-form-notice {
+  color: #9c2f2f;
+  font-size: 0.73rem;
+  line-height: 1.5;
+}
+
+.cart-unavailable-message {
+  margin: 0 0 0.8rem;
+}
+
 .cart-summary__total {
   padding: 0.95rem 0;
   color: var(--cart-navy);
@@ -467,6 +514,12 @@
 .cart-request-button:hover {
   background: #0046bc;
   transform: translateY(-1px);
+}
+
+.cart-request-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .cart-request-button .material-symbols-outlined {
@@ -524,6 +577,144 @@
 
 .cart-empty .cart-request-button {
   width: auto;
+}
+
+.cart-inventory-status {
+  color: var(--cart-muted);
+  font-size: 0.8rem;
+}
+
+.cart-inventory-error,
+.cart-confirmation,
+.cart-request-form {
+  margin-bottom: 1rem;
+  padding: 1.1rem;
+  background: #fff;
+  border: 1px solid var(--cart-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 26px rgb(11 28 48 / 4%);
+}
+
+.cart-inventory-error,
+.cart-confirmation {
+  color: var(--cart-ink);
+}
+
+.cart-inventory-error p,
+.cart-confirmation p {
+  margin: 0.25rem 0 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.cart-confirmation {
+  border-color: #b7dfc1;
+  background: #f0faf2;
+}
+
+.cart-confirmation h2,
+.cart-request-form h2 {
+  margin: 0 0 0.45rem;
+  color: var(--cart-navy);
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+  font-size: 1.05rem;
+}
+
+.cart-request-form > p {
+  margin: 0 0 0.9rem;
+  color: var(--cart-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.cart-request-form form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cart-request-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: #42516a;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cart-request-form input,
+.cart-request-form textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.55rem 0.65rem;
+  color: var(--cart-ink);
+  background: #fff;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.cart-request-form textarea {
+  resize: vertical;
+}
+
+.cart-request-form input:focus,
+.cart-request-form textarea:focus {
+  border-color: var(--cart-blue);
+  outline: 2px solid rgb(0 81 213 / 15%);
+}
+
+.cart-field-error {
+  font-weight: 500;
+}
+
+.cart-submit-error {
+  margin: 0;
+}
+
+.cart-review-changes {
+  padding: 0.75rem;
+  color: #6a5015;
+  background: #fff8df;
+  border: 1px solid #f0dda0;
+  border-radius: 7px;
+}
+
+.cart-review-changes ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.cart-secondary-button {
+  min-height: 38px;
+  padding: 0.45rem 0.75rem;
+  color: var(--cart-blue);
+  background: #fff;
+  border: 1px solid #b6d0ff;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.cart-missing-vehicle {
+  display: flex;
+  min-height: 110px;
+  padding: 1rem;
+  align-items: center;
+  gap: 0.75rem;
+  color: #8d3f32;
+  grid-column: 1 / -1;
+}
+
+.cart-missing-vehicle p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.cart-remove--missing {
+  margin: 0.6rem;
+  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 .cart-benefits {
@@ -704,6 +895,10 @@
 
   .cart-summary {
     position: static;
+    grid-row: 1;
+  }
+
+  .cart-summary-column {
     grid-row: 1;
   }
 

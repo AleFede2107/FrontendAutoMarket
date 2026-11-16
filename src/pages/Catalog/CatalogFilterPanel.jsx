@@ -8,7 +8,6 @@ function getOptions(vehicles, property) {
 
 function CatalogFilterPanel({ vehicles, filters, isOpen, onApply, onClear }) {
   const [brand, setBrand] = useState(filters.brand)
-  const [bodyStyle, setBodyStyle] = useState(filters.bodyStyle)
   const [minPrice, setMinPrice] = useState(filters.minPrice)
   const [maxPrice, setMaxPrice] = useState(filters.maxPrice)
   const [minYear, setMinYear] = useState(filters.minYear)
@@ -18,7 +17,6 @@ function CatalogFilterPanel({ vehicles, filters, isOpen, onApply, onClear }) {
   const [validationMessage, setValidationMessage] = useState('')
 
   const brands = getOptions(vehicles, 'brand')
-  const bodyStyles = getOptions(vehicles, 'bodyStyle')
   const transmissions = getOptions(vehicles, 'transmission')
   const fuels = getOptions(vehicles, 'fuel')
 
@@ -38,7 +36,6 @@ function CatalogFilterPanel({ vehicles, filters, isOpen, onApply, onClear }) {
     setValidationMessage('')
     onApply({
       brand,
-      bodyStyle,
       minPrice,
       maxPrice,
       minYear,
@@ -50,7 +47,6 @@ function CatalogFilterPanel({ vehicles, filters, isOpen, onApply, onClear }) {
 
   function handleClear() {
     setBrand('')
-    setBodyStyle('')
     setMinPrice('')
     setMaxPrice('')
     setMinYear('')
@@ -94,24 +90,8 @@ function CatalogFilterPanel({ vehicles, filters, isOpen, onApply, onClear }) {
           </select>
         </label>
 
-        <label className="catalog-filter-panel__field" htmlFor="filter-body">
-          <span>Carrocería</span>
-          <select
-            id="filter-body"
-            value={bodyStyle}
-            onChange={(event) => setBodyStyle(event.target.value)}
-          >
-            <option value="">Todas las carrocerías</option>
-            {bodyStyles.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <fieldset className="catalog-filter-panel__group">
-          <legend>Rango de precios (USD)</legend>
+          <legend>Rango de precios</legend>
           <div className="catalog-filter-panel__range">
             <label htmlFor="filter-price-min">
               <span>Mínimo</span>

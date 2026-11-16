@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router'
+import { CartProvider } from '../context/CartProvider.jsx'
 
 function PublicLayout() {
   const isHome = useLocation().pathname === '/'
@@ -49,7 +50,9 @@ function PublicLayout() {
         </div>
       </header>
       <main className="site-main">
-        <Outlet />
+        <CartProvider>
+          <Outlet />
+        </CartProvider>
       </main>
       <footer className="public-footer" id="contacto">
         <div className="public-footer__inner">

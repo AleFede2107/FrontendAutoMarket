@@ -2,6 +2,11 @@ import { clearSession, getStoredSession } from './authService.js'
 import { buildApiUrl } from './httpConfig.js'
 
 const fieldLabels = {
+  nombre_cliente: 'Nombre',
+  correo_cliente: 'Correo',
+  telefono_cliente: 'Teléfono',
+  vehiculos_ids: 'Vehículos',
+  mensaje_cliente: 'Mensaje',
   marca: 'Marca',
   modelo: 'Modelo',
   anio: 'Año',

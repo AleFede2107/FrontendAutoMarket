@@ -417,6 +417,16 @@ button {
   transition: transform 300ms ease;
 }
 
+.vehicle-card__image-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  color: #78827e;
+  background: #e8ece8;
+  font-size: 0.78rem;
+  place-items: center;
+}
+
 .vehicle-card:hover .vehicle-card__image {
   transform: scale(1.035);
 }
@@ -474,6 +484,47 @@ button {
 .vehicle-card__footer > strong {
   color: #263a31;
   font-size: 1.12rem;
+}
+
+.vehicle-card__cart-actions {
+  display: flex;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid #edf0ed;
+}
+
+.vehicle-card__status {
+  color: #617565;
+  font-size: 0.72rem;
+}
+
+.vehicle-card__cart-action {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0.5rem 0.65rem;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: #315d3b;
+  border: 1px solid #315d3b;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.vehicle-card__cart-action.is-selected {
+  color: #315d3b;
+  background: #fff;
+}
+
+.vehicle-card__cart-action:disabled {
+  color: #647064;
+  background: #edf0ed;
+  border-color: #dce3dc;
+  cursor: not-allowed;
 }
 
 .text-button {
