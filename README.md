@@ -1,5 +1,4 @@
 # AutoMarket
-# AutoMarket
 
 Frontend académico para una aplicación de venta de autos. El backend se
 desarrolla en un repositorio independiente.
