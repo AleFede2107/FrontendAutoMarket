@@ -4,11 +4,11 @@ Frontend académico para una aplicación de venta de autos. El backend se
 desarrolla en un repositorio independiente.
 ## Integrantes
 
--Federico José Alegría Castro
--Renzo Alexander Genovez Gomez
--Werner Alejandro Toledo Diaz
--German Enrique Valeriano
--Gustavo Adolfo Pineda Montes
+-Federico José Alegría Castro.
+-Renzo Alexander Genovez Gomez.
+-Werner Alejandro Toledo Diaz.
+-German Enrique Valeriano.
+-Gustavo Adolfo Pineda Montes.
 
 ## Tecnologías
 
