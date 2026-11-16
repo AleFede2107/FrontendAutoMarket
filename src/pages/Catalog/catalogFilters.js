@@ -1,17 +1,17 @@
 const LEGACY_BUDGET_FILTERS = {
   under30000: {
-    label: 'Hasta $30,000 USD',
+    label: 'Hasta 30,000',
     maxPrice: '30000',
     matches: (price) => price < 30000,
   },
   '30000to35000': {
-    label: '$30,000 – $35,000 USD',
+    label: '30,000 – 35,000',
     minPrice: '30000',
     maxPrice: '35000',
     matches: (price) => price >= 30000 && price <= 35000,
   },
   over35000: {
-    label: 'Más de $35,000 USD',
+    label: 'Más de 35,000',
     minPrice: '35000',
     matches: (price) => price > 35000,
   },
@@ -32,7 +32,6 @@ function readCatalogFilters(searchParams) {
 
   return {
     brand: searchParams.get('marca') ?? '',
-    bodyStyle: searchParams.get('carroceria') ?? '',
     minPrice:
       urlMinPrice ||
       (!hasExplicitPrice ? (budgetFilter?.minPrice ?? '') : ''),
@@ -60,10 +59,6 @@ function filterVehicles(vehicles, filters) {
       term &&
       !vehicle.brand.toLocaleLowerCase('es-MX').includes(term)
     ) {
-      return false
-    }
-
-    if (filters.bodyStyle && vehicle.bodyStyle !== filters.bodyStyle) {
       return false
     }
 
@@ -108,7 +103,6 @@ function buildCatalogSearchParams(filters) {
   const params = new URLSearchParams()
   const entries = [
     ['marca', filters.brand],
-    ['carroceria', filters.bodyStyle],
     ['precioMin', filters.minPrice],
     ['precioMax', filters.maxPrice],
     ['anioMin', filters.minYear],
@@ -126,8 +120,6 @@ function buildCatalogSearchParams(filters) {
 
 function formatPrice(price) {
   return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'USD',
     maximumFractionDigits: 0,
   }).format(price)
 }
@@ -140,14 +132,6 @@ function getActiveFilters(filters) {
       key: 'marca',
       label: `Marca: ${filters.brand}`,
       params: ['marca'],
-    })
-  }
-
-  if (filters.bodyStyle) {
-    activeFilters.push({
-      key: 'carroceria',
-      label: `Carrocería: ${filters.bodyStyle}`,
-      params: ['carroceria'],
     })
   }
 

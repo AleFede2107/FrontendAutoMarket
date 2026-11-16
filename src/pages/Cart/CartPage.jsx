@@ -1,61 +1,105 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { useCart } from '../../context/useCart.js'
+import { ApiError } from '../../services/apiClient.js'
+import { createPurchaseRequest } from '../../services/purchaseRequestService.js'
+import { listPublicVehicles } from '../../services/vehicleService.js'
 import './CartPage.css'
 
-const demoVehicles = [
-  {
-    id: 'toyota-corolla-2023',
-    brand: 'Toyota',
-    model: 'Corolla SE',
-    year: 2023,
-    price: 28900,
-    mileage: 18400,
-    transmission: 'Automática',
-    fuel: 'Gasolina',
-    bodyStyle: 'Sedán',
-    description:
-      'Un sedán cómodo y eficiente, con cámara de reversa, pantalla multimedia y amplio espacio para viajar.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'honda-civic-2022',
-    brand: 'Honda',
-    model: 'Civic Touring',
-    year: 2022,
-    price: 31500,
-    mileage: 22100,
-    transmission: 'Automática',
-    fuel: 'Gasolina',
-    bodyStyle: 'Sedán',
-    description:
-      'Diseño deportivo, interiores premium y tecnología de asistencia para disfrutar cada trayecto.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=1200&q=85',
-  },
-  {
-    id: 'mazda-cx5-2024',
-    brand: 'Mazda',
-    model: 'CX-5 Grand Touring',
-    year: 2024,
-    price: 36900,
-    mileage: 9600,
-    transmission: 'Automática',
-    fuel: 'Gasolina',
-    bodyStyle: 'SUV',
-    description:
-      'SUV versátil con acabados cuidados, conducción ágil y espacio para acompañarte en nuevas rutas.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?auto=format&fit=crop&w=1200&q=85',
-  },
-]
+const EMPTY_FORM = {
+  nombre_cliente: '',
+  correo_cliente: '',
+  telefono_cliente: '',
+  mensaje_cliente: '',
+}
 
-function formatPrice(price) {
+function formatAmount(amount) {
   return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(price)
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+function getStatusLabel(status) {
+  const labels = {
+    disponible: 'Disponible',
+    reservado: 'Reservado',
+    vendido: 'Vendido',
+  }
+
+  return labels[status] ?? status
+}
+
+function validateForm(form) {
+  const errors = {}
+  const name = form.nombre_cliente.trim()
+  const email = form.correo_cliente.trim()
+  const phone = form.telefono_cliente.trim()
+
+  if (name.length < 2 || name.length > 150) {
+    errors.nombre_cliente = 'Escribe un nombre de entre 2 y 150 caracteres.'
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.correo_cliente = 'Escribe un correo electrónico válido.'
+  }
+
+  if (phone.length < 1 || phone.length > 30) {
+    errors.telefono_cliente = 'El teléfono debe tener entre 1 y 30 caracteres.'
+  }
+
+  if (form.mensaje_cliente.length > 5000) {
+    errors.mensaje_cliente = 'El mensaje no puede superar 5000 caracteres.'
+  }
+
+  return errors
+}
+
+function getInventoryChanges(previousVehicles, latestVehicles, selectedIds) {
+  const previousById = new Map(
+    previousVehicles.map((vehicle) => [vehicle.id, vehicle]),
+  )
+  const latestById = new Map(
+    latestVehicles.map((vehicle) => [vehicle.id, vehicle]),
+  )
+
+  return selectedIds.flatMap((id) => {
+    const previousVehicle = previousById.get(id)
+    const latestVehicle = latestById.get(id)
+
+    if (!latestVehicle) {
+      return [
+        {
+          id,
+          name: previousVehicle
+            ? `${previousVehicle.brand} ${previousVehicle.model}`
+            : `Vehículo ${id}`,
+          previousStatus: previousVehicle?.estado ?? 'sin verificar',
+          latestStatus: 'no encontrado',
+          previousPrice: previousVehicle?.price,
+          latestPrice: undefined,
+        },
+      ]
+    }
+
+    if (
+      previousVehicle &&
+      (previousVehicle.estado !== latestVehicle.estado ||
+        previousVehicle.price !== latestVehicle.price)
+    ) {
+      return [
+        {
+          id,
+          name: `${latestVehicle.brand} ${latestVehicle.model}`,
+          previousStatus: previousVehicle.estado,
+          latestStatus: latestVehicle.estado,
+          previousPrice: previousVehicle.price,
+          latestPrice: latestVehicle.price,
+        },
+      ]
+    }
+
+    return []
+  })
 }
 
 function VehicleDetailsDialog({ vehicle, onClose }) {
@@ -91,19 +135,27 @@ function VehicleDetailsDialog({ vehicle, onClose }) {
             close
           </span>
         </button>
-        <img
-          className="cart-dialog__image"
-          src={vehicle.imageUrl}
-          alt={`${vehicle.brand} ${vehicle.model}`}
-        />
+        {vehicle.imageUrl ? (
+          <img
+            className="cart-dialog__image"
+            src={vehicle.imageUrl}
+            alt={`${vehicle.brand} ${vehicle.model}`}
+          />
+        ) : (
+          <div className="cart-dialog__image cart-image-placeholder">
+            Sin fotografía
+          </div>
+        )}
         <div className="cart-dialog__content">
           <span className="cart-eyebrow">
-            {vehicle.bodyStyle} · {vehicle.year}
+            {getStatusLabel(vehicle.estado)} · {vehicle.year}
           </span>
           <h2 id="cart-dialog-title">
             {vehicle.brand} {vehicle.model}
           </h2>
-          <p className="cart-dialog__price">{formatPrice(vehicle.price)}</p>
+          <p className="cart-dialog__price">
+            {formatAmount(vehicle.price)}
+          </p>
           <p>{vehicle.description}</p>
           <dl className="cart-dialog__specs">
             <div>
@@ -112,11 +164,11 @@ function VehicleDetailsDialog({ vehicle, onClose }) {
             </div>
             <div>
               <dt>Transmisión</dt>
-              <dd>{vehicle.transmission}</dd>
+              <dd>{vehicle.transmission || 'No especificada'}</dd>
             </div>
             <div>
               <dt>Combustible</dt>
-              <dd>{vehicle.fuel}</dd>
+              <dd>{vehicle.fuel || 'No especificado'}</dd>
             </div>
             <div>
               <dt>Año</dt>
@@ -130,40 +182,251 @@ function VehicleDetailsDialog({ vehicle, onClose }) {
 }
 
 function CartPage() {
-  const [vehicles, setVehicles] = useState(() =>
-    demoVehicles.map((vehicle) => ({ ...vehicle, quantity: 1 })),
-  )
+  const { vehicleIds, storageMessage, removeVehicle, removeVehicles } = useCart()
+  const [inventory, setInventory] = useState([])
+  const [inventoryStatus, setInventoryStatus] = useState('loading')
+  const [inventoryError, setInventoryError] = useState('')
   const [selectedVehicle, setSelectedVehicle] = useState(null)
-  const itemCount = useMemo(
-    () => vehicles.reduce((total, vehicle) => total + vehicle.quantity, 0),
-    [vehicles],
+  const [formOpen, setFormOpen] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [formErrors, setFormErrors] = useState({})
+  const [submitError, setSubmitError] = useState('')
+  const [reviewChanges, setReviewChanges] = useState([])
+  const [reviewRequired, setReviewRequired] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitPhase, setSubmitPhase] = useState('idle')
+  const [confirmation, setConfirmation] = useState(null)
+  const inventoryRequestRef = useRef(0)
+  const inventoryControllerRef = useRef(null)
+  const submissionLockRef = useRef(false)
+
+  useEffect(() => {
+    const requestId = inventoryRequestRef.current + 1
+    inventoryRequestRef.current = requestId
+    const controller = new AbortController()
+    inventoryControllerRef.current = controller
+
+    listPublicVehicles({ signal: controller.signal })
+      .then((vehicles) => {
+        if (inventoryRequestRef.current === requestId) {
+          setInventory(vehicles)
+          setInventoryStatus('success')
+        }
+      })
+      .catch((error) => {
+        if (
+          inventoryRequestRef.current === requestId &&
+          error?.name !== 'AbortError'
+        ) {
+          setInventoryStatus('error')
+          setInventoryError(
+            'No pudimos consultar el inventario. Tu selección se conserva; intenta cargarlo de nuevo.',
+          )
+        }
+      })
+      .finally(() => {
+        if (inventoryRequestRef.current === requestId) {
+          inventoryControllerRef.current = null
+        }
+      })
+
+    return () => {
+      inventoryRequestRef.current += 1
+      inventoryControllerRef.current?.abort()
+    }
+  }, [])
+
+  const inventoryById = useMemo(
+    () => new Map(inventory.map((vehicle) => [vehicle.id, vehicle])),
+    [inventory],
   )
-  const subtotal = useMemo(
+  const selectedVehicles = useMemo(
     () =>
-      vehicles.reduce(
-        (total, vehicle) => total + vehicle.price * vehicle.quantity,
-        0,
+      vehicleIds.map(
+        (id) =>
+          inventoryById.get(id) ?? {
+            id,
+            missing: inventoryStatus === 'success',
+            unresolved: true,
+          },
       ),
-    [vehicles],
+    [inventoryById, inventoryStatus, vehicleIds],
   )
+  const itemCount = vehicleIds.length
+  const subtotal = selectedVehicles.reduce(
+    (total, vehicle) =>
+      total + (Number.isFinite(vehicle.price) ? vehicle.price : 0),
+    0,
+  )
+  const unavailableIds = useMemo(
+    () =>
+      inventoryStatus === 'success'
+        ? vehicleIds.filter(
+            (id) => inventoryById.get(id)?.estado !== 'disponible',
+          )
+        : vehicleIds,
+    [inventoryById, inventoryStatus, vehicleIds],
+  )
+  const canSubmit =
+    inventoryStatus === 'success' &&
+    vehicleIds.length > 0 &&
+    unavailableIds.length === 0 &&
+    !isSubmitting
 
-  function updateQuantity(vehicleId, change) {
-    setVehicles((currentVehicles) =>
-      currentVehicles.map((vehicle) =>
-        vehicle.id === vehicleId
-          ? { ...vehicle, quantity: Math.max(1, vehicle.quantity + change) }
-          : vehicle,
-      ),
-    )
-  }
-
-  function removeVehicle(vehicleId) {
-    setVehicles((currentVehicles) =>
-      currentVehicles.filter((vehicle) => vehicle.id !== vehicleId),
-    )
+  function removeFromCart(vehicleId) {
+    removeVehicle(vehicleId)
     setSelectedVehicle((currentVehicle) =>
       currentVehicle?.id === vehicleId ? null : currentVehicle,
     )
+  }
+
+  function updateForm(event) {
+    const { name, value } = event.target
+    setForm((currentForm) => ({ ...currentForm, [name]: value }))
+    setFormErrors((currentErrors) => ({ ...currentErrors, [name]: '' }))
+    setSubmitError('')
+  }
+
+  function retryInventory() {
+    const requestId = inventoryRequestRef.current + 1
+    inventoryRequestRef.current = requestId
+    inventoryControllerRef.current?.abort()
+    const controller = new AbortController()
+    inventoryControllerRef.current = controller
+    setInventoryStatus('loading')
+    setInventoryError('')
+
+    listPublicVehicles({ signal: controller.signal })
+      .then((vehicles) => {
+        if (inventoryRequestRef.current === requestId) {
+          setInventory(vehicles)
+          setInventoryStatus('success')
+        }
+      })
+      .catch((error) => {
+        if (
+          inventoryRequestRef.current === requestId &&
+          error?.name !== 'AbortError'
+        ) {
+          setInventoryStatus('error')
+          setInventoryError(
+            'No pudimos consultar el inventario. Tu selección se conserva; intenta cargarlo de nuevo.',
+          )
+        }
+      })
+      .finally(() => {
+        if (inventoryRequestRef.current === requestId) {
+          inventoryControllerRef.current = null
+        }
+      })
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+
+    if (submissionLockRef.current) {
+      return
+    }
+
+    const errors = validateForm(form)
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      return
+    }
+
+    if (inventoryStatus !== 'success') {
+      setSubmitError('Carga el inventario antes de enviar la solicitud.')
+      return
+    }
+
+    const submittedIds = [...new Set(vehicleIds)]
+    if (submittedIds.length === 0) {
+      setSubmitError('Agrega al menos un vehículo disponible.')
+      return
+    }
+
+    submissionLockRef.current = true
+    setIsSubmitting(true)
+    setSubmitPhase('checking')
+    setSubmitError('')
+
+    try {
+      let latestVehicles
+
+      try {
+        latestVehicles = await listPublicVehicles()
+      } catch {
+        setSubmitError(
+          'No se pudo verificar la disponibilidad actual. No se envió la solicitud y tu selección se conservó.',
+        )
+        return
+      }
+
+      const changes = getInventoryChanges(inventory, latestVehicles, submittedIds)
+      setInventory(latestVehicles)
+      setInventoryStatus('success')
+      setInventoryError('')
+
+      if (changes.length > 0) {
+        setReviewChanges(changes)
+        setReviewRequired(true)
+        setSubmitError(
+          'El precio o la disponibilidad cambió. Revisa los datos actualizados antes de confirmar.',
+        )
+        return
+      }
+
+      const latestById = new Map(
+        latestVehicles.map((vehicle) => [vehicle.id, vehicle]),
+      )
+      if (
+        submittedIds.some(
+          (id) => latestById.get(id)?.estado !== 'disponible',
+        )
+      ) {
+        setSubmitError(
+          'Uno o más vehículos ya no están disponibles. Retíralos o elige otros antes de enviar.',
+        )
+        setReviewRequired(false)
+        return
+      }
+
+      setReviewChanges([])
+      setReviewRequired(false)
+      setSubmitPhase('sending')
+
+      try {
+        const item = await createPurchaseRequest({
+          nombre_cliente: form.nombre_cliente.trim(),
+          correo_cliente: form.correo_cliente.trim(),
+          telefono_cliente: form.telefono_cliente.trim(),
+          vehiculos_ids: submittedIds,
+          mensaje_cliente: form.mensaje_cliente.trim(),
+        })
+
+        setConfirmation(item)
+        removeVehicles(submittedIds)
+        setForm(EMPTY_FORM)
+        setFormErrors({})
+        setFormOpen(false)
+      } catch (error) {
+        if (error instanceof ApiError && [400, 404, 409, 422].includes(error.status)) {
+          setSubmitError(
+            error.status === 404
+              ? 'Uno o más vehículos ya no existen. Tu selección se conservó; revisa el catálogo.'
+              : error.message,
+          )
+        } else {
+          setSubmitError(
+            'No se pudo confirmar el resultado del envío. La solicitud pudo haberse registrado; no la reenvíes hasta consultar con AutoMarket.',
+          )
+        }
+      }
+    } finally {
+      submissionLockRef.current = false
+      setIsSubmitting(false)
+      setSubmitPhase('idle')
+    }
   }
 
   return (
@@ -185,7 +448,7 @@ function CartPage() {
           <div>
             <span className="cart-eyebrow">Tu próxima elección</span>
             <h1>Carrito de Selección</h1>
-            <p>Revisa y ajusta los vehículos que te interesan.</p>
+            <p>Revisa los vehículos reales que te interesan.</p>
           </div>
           <Link className="cart-back-link" to="/autos">
             <span className="material-symbols-outlined" aria-hidden="true">
@@ -195,20 +458,50 @@ function CartPage() {
           </Link>
         </header>
 
-        <aside className="cart-inventory-notice" aria-label="Aviso de inventario">
-          <span
-            className="material-symbols-outlined cart-inventory-notice__icon"
-            aria-hidden="true"
-          >
-            info
-          </span>
-          <p>
-            <strong>Catálogo de demostración.</strong> Los vehículos y precios
-            son datos locales de muestra; no representan disponibilidad real.
-          </p>
-        </aside>
+        {storageMessage ? (
+          <aside className="cart-inventory-notice" role="status">
+            <span
+              className="material-symbols-outlined cart-inventory-notice__icon"
+              aria-hidden="true"
+            >
+              info
+            </span>
+            <p>{storageMessage}</p>
+          </aside>
+        ) : null}
 
-        {vehicles.length > 0 ? (
+        {inventoryStatus === 'loading' ? (
+          <p className="cart-inventory-status" role="status">
+            Consultando inventario...
+          </p>
+        ) : null}
+        {inventoryStatus === 'error' ? (
+          <div className="cart-inventory-error" role="alert">
+            <p>{inventoryError}</p>
+            <button type="button" className="cart-secondary-button" onClick={retryInventory}>
+              Reintentar
+            </button>
+          </div>
+        ) : null}
+
+        {confirmation ? (
+          <section className="cart-confirmation" role="status" aria-live="polite">
+            <h2>Solicitud enviada</h2>
+            <p>
+              Solicitud #{confirmation.id} · Estado: {confirmation.estado}
+            </p>
+            <p>
+              Total estimado recibido del servidor:{' '}
+              {String(confirmation.total_estimado)}
+            </p>
+            <p>
+              El envío de una solicitud no constituye un pago ni una reserva
+              confirmada.
+            </p>
+          </section>
+        ) : null}
+
+        {itemCount > 0 ? (
           <div className="cart-layout">
             <section className="cart-selection" aria-labelledby="cart-list-title">
               <div className="cart-section-heading">
@@ -222,143 +515,316 @@ function CartPage() {
               </div>
 
               <div className="cart-vehicle-list">
-                {vehicles.map((vehicle) => (
+                {selectedVehicles.map((vehicle) => (
                   <article className="cart-vehicle-card" key={vehicle.id}>
-                    <div className="cart-vehicle-card__image-wrap">
-                      <img
-                        src={vehicle.imageUrl}
-                        alt={`${vehicle.brand} ${vehicle.model}`}
-                        className="cart-vehicle-card__image"
-                      />
-                      <span className="cart-vehicle-card__year">
-                        {vehicle.year}
-                      </span>
-                    </div>
-                    <div className="cart-vehicle-card__body">
-                      <div className="cart-vehicle-card__top">
-                        <div>
-                          <span className="cart-vehicle-card__brand">
-                            {vehicle.brand}
-                          </span>
-                          <h3>{vehicle.model}</h3>
-                        </div>
-                        <button
-                          className="cart-remove"
-                          type="button"
-                          onClick={() => removeVehicle(vehicle.id)}
-                          aria-label={`Eliminar ${vehicle.brand} ${vehicle.model} del carrito`}
-                          title="Eliminar vehículo"
-                        >
-                          <span className="material-symbols-outlined" aria-hidden="true">
-                            delete
-                          </span>
-                        </button>
+                    {vehicle.missing || vehicle.unresolved ? (
+                      <div className="cart-missing-vehicle">
+                        <span className="material-symbols-outlined" aria-hidden="true">
+                          warning
+                        </span>
+                        <p>
+                          {vehicle.missing
+                            ? `El vehículo ${vehicle.id} ya no aparece en el inventario actual.`
+                            : `No se pudo consultar el vehículo ${vehicle.id}. La selección se conserva.`}
+                        </p>
                       </div>
-                      <dl className="cart-vehicle-specs">
-                        <div>
-                          <dt>
-                            <span className="material-symbols-outlined" aria-hidden="true">
-                              speed
-                            </span>
-                            Kilometraje
-                          </dt>
-                          <dd>{vehicle.mileage.toLocaleString('es-MX')} km</dd>
-                        </div>
-                        <div>
-                          <dt>
-                            <span className="material-symbols-outlined" aria-hidden="true">
-                              settings
-                            </span>
-                            Transmisión
-                          </dt>
-                          <dd>{vehicle.transmission}</dd>
-                        </div>
-                        <div>
-                          <dt>
-                            <span className="material-symbols-outlined" aria-hidden="true">
-                              local_gas_station
-                            </span>
-                            Combustible
-                          </dt>
-                          <dd>{vehicle.fuel}</dd>
-                        </div>
-                      </dl>
-                      <div className="cart-vehicle-card__footer">
-                        <strong>{formatPrice(vehicle.price * vehicle.quantity)}</strong>
-                        <div className="cart-quantity" aria-label="Cantidad">
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(vehicle.id, -1)}
-                            disabled={vehicle.quantity === 1}
-                            aria-label={`Reducir cantidad de ${vehicle.brand} ${vehicle.model}`}
-                          >
-                            <span className="material-symbols-outlined" aria-hidden="true">
-                              remove
-                            </span>
-                          </button>
-                          <span aria-live="polite">{vehicle.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(vehicle.id, 1)}
-                            aria-label={`Aumentar cantidad de ${vehicle.brand} ${vehicle.model}`}
-                          >
-                            <span className="material-symbols-outlined" aria-hidden="true">
-                              add
-                            </span>
-                          </button>
-                        </div>
-                        <button
-                          className="cart-details-button"
-                          type="button"
-                          onClick={() => setSelectedVehicle(vehicle)}
-                        >
-                          Consultar ficha
-                          <span className="material-symbols-outlined" aria-hidden="true">
-                            arrow_forward
+                    ) : (
+                      <>
+                        <div className="cart-vehicle-card__image-wrap">
+                          {vehicle.imageUrl ? (
+                            <img
+                              src={vehicle.imageUrl}
+                              alt={`${vehicle.brand} ${vehicle.model}`}
+                              className="cart-vehicle-card__image"
+                            />
+                          ) : (
+                            <div
+                              className="cart-image-placeholder"
+                              aria-hidden="true"
+                            >
+                              Sin fotografía
+                            </div>
+                          )}
+                          <span className="cart-vehicle-card__year">
+                            {vehicle.year}
                           </span>
-                        </button>
-                      </div>
-                    </div>
+                        </div>
+                        <div className="cart-vehicle-card__body">
+                          <div className="cart-vehicle-card__top">
+                            <div>
+                              <span className="cart-vehicle-card__brand">
+                                {vehicle.brand}
+                              </span>
+                              <h3>{vehicle.model}</h3>
+                              <span
+                                className={`cart-vehicle-status${vehicle.estado === 'disponible' ? '' : ' is-unavailable'}`}
+                              >
+                                {getStatusLabel(vehicle.estado)}
+                              </span>
+                            </div>
+                            <button
+                              className="cart-remove"
+                              type="button"
+                              onClick={() => removeFromCart(vehicle.id)}
+                              aria-label={`Eliminar ${vehicle.brand} ${vehicle.model} del carrito`}
+                              title="Eliminar vehículo"
+                            >
+                              <span className="material-symbols-outlined" aria-hidden="true">
+                                delete
+                              </span>
+                            </button>
+                          </div>
+                          <dl className="cart-vehicle-specs">
+                            <div>
+                              <dt>
+                                <span className="material-symbols-outlined" aria-hidden="true">
+                                  speed
+                                </span>
+                                Kilometraje
+                              </dt>
+                              <dd>{vehicle.mileage.toLocaleString('es-MX')} km</dd>
+                            </div>
+                            <div>
+                              <dt>
+                                <span className="material-symbols-outlined" aria-hidden="true">
+                                  settings
+                                </span>
+                                Transmisión
+                              </dt>
+                              <dd>{vehicle.transmission || 'No especificada'}</dd>
+                            </div>
+                            <div>
+                              <dt>
+                                <span className="material-symbols-outlined" aria-hidden="true">
+                                  local_gas_station
+                                </span>
+                                Combustible
+                              </dt>
+                              <dd>{vehicle.fuel || 'No especificado'}</dd>
+                            </div>
+                          </dl>
+                          <div className="cart-vehicle-card__footer">
+                            <strong>
+                              {formatAmount(vehicle.price)}
+                              <span className="cart-price-unit"> · 1 unidad</span>
+                            </strong>
+                            <button
+                              className="cart-details-button"
+                              type="button"
+                              onClick={() => setSelectedVehicle(vehicle)}
+                            >
+                              Consultar ficha
+                              <span className="material-symbols-outlined" aria-hidden="true">
+                                arrow_forward
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {vehicle.missing || vehicle.unresolved ? (
+                      <button
+                        className="cart-remove cart-remove--missing"
+                        type="button"
+                        onClick={() => removeFromCart(vehicle.id)}
+                        aria-label={`Eliminar vehículo ${vehicle.id} del carrito`}
+                        title="Eliminar vehículo"
+                      >
+                        <span className="material-symbols-outlined" aria-hidden="true">
+                          delete
+                        </span>
+                      </button>
+                    ) : null}
                   </article>
                 ))}
               </div>
             </section>
 
-            <aside className="cart-summary" aria-labelledby="cart-summary-title">
-              <div className="cart-summary__heading">
-                <span className="material-symbols-outlined" aria-hidden="true">
-                  receipt_long
-                </span>
-                <h2 id="cart-summary-title">Resumen de selección</h2>
-              </div>
-              <div className="cart-summary__count">
-                <span>Vehículos seleccionados</span>
-                <strong>{itemCount}</strong>
-              </div>
-              <div className="cart-summary__line">
-                <span>Subtotal estimado</span>
-                <strong>{formatPrice(subtotal)}</strong>
-              </div>
-              <p className="cart-summary__note">
-                Precios referenciales de demostración, sujetos a confirmación.
-              </p>
-              <div className="cart-summary__total">
-                <span>Total estimado</span>
-                <strong>{formatPrice(subtotal)}</strong>
-              </div>
-              <Link className="cart-request-button" to="/autos">
-                Seguir explorando
-                <span className="material-symbols-outlined" aria-hidden="true">
-                  arrow_forward
-                </span>
-              </Link>
-              <p className="cart-summary__secure">
-                <span className="material-symbols-outlined" aria-hidden="true">
-                  info
-                </span>
-                Vista demostrativa, sin solicitudes ni reservas
-              </p>
-            </aside>
+            <div className="cart-summary-column">
+              <aside
+                className={`cart-summary${formOpen ? ' is-form-open' : ''}`}
+                aria-labelledby="cart-summary-title"
+              >
+                <div className="cart-summary__heading">
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    receipt_long
+                  </span>
+                  <h2 id="cart-summary-title">Resumen de selección</h2>
+                </div>
+                <div className="cart-summary__count">
+                  <span>Vehículos seleccionados</span>
+                  <strong>{itemCount}</strong>
+                </div>
+                <div className="cart-summary__line">
+                  <span>Total estimado</span>
+                  <strong>{formatAmount(subtotal)}</strong>
+                </div>
+                <p className="cart-summary__note">
+                  Valores mostrados según el inventario actual. La moneda no está
+                  especificada por el backend.
+                </p>
+                {unavailableIds.length > 0 &&
+                inventoryStatus === 'success' ? (
+                  <p className="cart-unavailable-message" role="alert">
+                    Retira los vehículos no disponibles para enviar la solicitud.
+                  </p>
+                ) : null}
+                <button
+                  className="cart-request-button"
+                  type="button"
+                  onClick={() => setFormOpen((isOpen) => !isOpen)}
+                >
+                  {formOpen ? 'Cerrar formulario' : 'Enviar solicitud de compra'}
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    {formOpen ? 'close' : 'arrow_forward'}
+                  </span>
+                </button>
+                <p className="cart-summary__secure">
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    info
+                  </span>
+                  Solicitud sin pago ni reserva confirmada
+                </p>
+              </aside>
+
+              {formOpen ? (
+                <section className="cart-request-form" aria-labelledby="request-form-title">
+                  <h2 id="request-form-title">Datos de contacto</h2>
+                  <p>Completa tus datos para que podamos contactarte.</p>
+                  <form onSubmit={handleSubmit} noValidate>
+                    <label htmlFor="request-name">
+                      Nombre
+                      <input
+                        id="request-name"
+                        name="nombre_cliente"
+                        autoComplete="name"
+                        minLength={2}
+                        maxLength={150}
+                        required
+                        value={form.nombre_cliente}
+                        onChange={updateForm}
+                        aria-invalid={Boolean(formErrors.nombre_cliente)}
+                        aria-describedby={
+                          formErrors.nombre_cliente ? 'request-name-error' : undefined
+                        }
+                      />
+                      {formErrors.nombre_cliente ? (
+                        <span id="request-name-error" className="cart-field-error">
+                          {formErrors.nombre_cliente}
+                        </span>
+                      ) : null}
+                    </label>
+                    <label htmlFor="request-email">
+                      Correo electrónico
+                      <input
+                        id="request-email"
+                        name="correo_cliente"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        value={form.correo_cliente}
+                        onChange={updateForm}
+                        aria-invalid={Boolean(formErrors.correo_cliente)}
+                        aria-describedby={
+                          formErrors.correo_cliente ? 'request-email-error' : undefined
+                        }
+                      />
+                      {formErrors.correo_cliente ? (
+                        <span id="request-email-error" className="cart-field-error">
+                          {formErrors.correo_cliente}
+                        </span>
+                      ) : null}
+                    </label>
+                    <label htmlFor="request-phone">
+                      Teléfono
+                      <input
+                        id="request-phone"
+                        name="telefono_cliente"
+                        type="tel"
+                        autoComplete="tel"
+                        maxLength={30}
+                        required
+                        value={form.telefono_cliente}
+                        onChange={updateForm}
+                        aria-invalid={Boolean(formErrors.telefono_cliente)}
+                        aria-describedby={
+                          formErrors.telefono_cliente ? 'request-phone-error' : undefined
+                        }
+                      />
+                      {formErrors.telefono_cliente ? (
+                        <span id="request-phone-error" className="cart-field-error">
+                          {formErrors.telefono_cliente}
+                        </span>
+                      ) : null}
+                    </label>
+                    <label htmlFor="request-message">
+                      Mensaje (opcional)
+                      <textarea
+                        id="request-message"
+                        name="mensaje_cliente"
+                        maxLength={5000}
+                        rows={4}
+                        value={form.mensaje_cliente}
+                        onChange={updateForm}
+                        aria-invalid={Boolean(formErrors.mensaje_cliente)}
+                        aria-describedby={
+                          formErrors.mensaje_cliente
+                            ? 'request-message-error'
+                            : undefined
+                        }
+                      />
+                      {formErrors.mensaje_cliente ? (
+                        <span id="request-message-error" className="cart-field-error">
+                          {formErrors.mensaje_cliente}
+                        </span>
+                      ) : null}
+                    </label>
+
+                    {inventoryStatus !== 'success' ? (
+                      <p className="cart-form-notice" role="status">
+                        Verifica el inventario antes de enviar la solicitud.
+                      </p>
+                    ) : null}
+                    {reviewChanges.length > 0 ? (
+                      <div className="cart-review-changes" role="alert">
+                        <strong>Se actualizaron estos datos:</strong>
+                        <ul>
+                          {reviewChanges.map((change) => (
+                            <li key={change.id}>
+                              {change.name}: estado{' '}
+                              {getStatusLabel(change.previousStatus)} →{' '}
+                              {getStatusLabel(change.latestStatus)}
+                              {change.previousPrice !== undefined ||
+                              change.latestPrice !== undefined
+                                ? `; precio ${change.previousPrice === undefined ? 'no disponible' : formatAmount(change.previousPrice)} → ${change.latestPrice === undefined ? 'no disponible' : formatAmount(change.latestPrice)}`
+                                : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {submitError ? (
+                      <p className="cart-submit-error" role="alert">
+                        {submitError}
+                      </p>
+                    ) : null}
+                    <button
+                      className="cart-request-button"
+                      type="submit"
+                      disabled={!canSubmit}
+                    >
+                      {isSubmitting
+                        ? submitPhase === 'checking'
+                          ? 'Verificando disponibilidad…'
+                          : 'Enviando solicitud…'
+                        : reviewRequired
+                          ? 'Confirmar y enviar solicitud'
+                          : 'Enviar solicitud'}
+                    </button>
+                  </form>
+                </section>
+              ) : null}
+            </div>
           </div>
         ) : (
           <section className="cart-empty" aria-labelledby="cart-empty-title">
@@ -367,7 +833,7 @@ function CartPage() {
             </span>
             <h2 id="cart-empty-title">Tu selección está vacía</h2>
             <p>
-              Explora el catálogo y agrega los vehículos que quieras comparar.
+              Explora el catálogo y agrega los vehículos disponibles que te interesan.
             </p>
             <Link className="cart-request-button" to="/autos">
               Explorar vehículos
@@ -399,7 +865,10 @@ function CartPage() {
               </span>
               <div>
                 <h3>Selección confiable</h3>
-                <p>Vehículos presentados con información clara para comparar.</p>
+                <p>
+                  La disponibilidad se comprueba antes del envío, pero no garantiza
+                  una reserva ni reemplaza la validación del backend.
+                </p>
               </div>
             </article>
             <article className="cart-benefit">

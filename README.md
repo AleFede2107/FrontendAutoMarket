@@ -49,11 +49,13 @@ npm run build
 | Panel de administración | `/admin` |
 | Listado de órdenes | `/admin/ordenes` |
 
-Las vistas de inicio, catálogo, carrito y login siguen provisionales. El panel
-administrativo ya consulta el inventario y permite agregar y eliminar registros;
-la pantalla de solicitudes obtiene los estados del catálogo del backend y filtra
-localmente el listado recibido. La edición de vehículos permanece deshabilitada
-hasta que backend defina un formato de actualización compatible.
+La página de inicio conserva secciones de muestra. El catálogo consulta los
+vehículos públicos del backend y el carrito permite enviar solicitudes de compra
+reales; el panel administrativo consulta el inventario y permite agregar y
+eliminar registros. La pantalla de solicitudes obtiene los estados del catálogo
+del backend y filtra localmente el listado recibido. La edición de vehículos
+permanece deshabilitada hasta que backend defina un formato de actualización
+compatible.
 
 ## Estructura de carpetas
 
@@ -62,6 +64,7 @@ hasta que backend defina un formato de actualización compatible.
 - `src/components/shared/`: componentes compartidos.
 - `src/components/home/`: secciones reutilizables de Inicio.
 - `src/components/vehicles/`: tarjetas reutilizables para vehículos.
+- `src/context/`: selección compartida y persistente del carrito.
 - `src/layouts/`: estructuras de navegación pública y administrativa.
 - `src/pages/`: una página por archivo y vista.
 - `src/services/`: acceso centralizado a vehículos.
@@ -96,9 +99,18 @@ mediante `src/services/authService.js`; el detalle está en
 un token ni una sesión persistente. Las rutas administrativas de React siguen
 sin protección, por lo que navegar a `/admin` no constituye autorización.
 
-El catálogo continúa usando datos de `src/mocks/vehicles.js`; no se envían
-peticiones ficticias. Los precios de prueba se presentan en USD solo como
-referencia. El frontend no se conecta directamente con la base de datos.
+El catálogo público obtiene los vehículos reales de
+`GET /api/v1/vehiculos/ListarVehiculos`. La selección del carrito guarda solo
+IDs de vehículos en `localStorage` con la clave versionada
+`automarket-cart-v1`; al mostrarla, usa los datos actuales recibidos del
+backend. El formulario envía `POST /api/v1/solicitudes/CrearSolicitud` sin
+autenticación administrativa. El backend calcula el total y mantiene el estado
+inicial de la solicitud. Una solicitud no es un pago ni una reserva confirmada.
+
+La comprobación de precio y disponibilidad del frontend es informativa y no
+garantiza una reserva ni reemplaza validaciones transaccionales del backend. La
+moneda no se etiqueta porque el contrato consultado no la define. La página de
+inicio todavía puede mostrar los vehículos de muestra de `src/mocks/vehicles.js`.
 
 Al desplegar, el servidor web deberá redirigir las rutas del navegador a
 `index.html` para que las rutas de React Router funcionen al abrirlas
